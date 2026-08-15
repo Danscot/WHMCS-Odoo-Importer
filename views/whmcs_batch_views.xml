@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ====== Import Batch — List ====== -->
+    <record id="view_whmcs_import_batch_list" model="ir.ui.view">
+        <field name="name">whmcs.import.batch.list</field>
+        <field name="model">whmcs.import.batch</field>
+        <field name="arch" type="xml">
+            <list string="Import History" decoration-success="state == 'done'"
+                  decoration-warning="state == 'done_with_warnings'"
+                  decoration-danger="state == 'failed'">
+                <field name="started_at"/>
+                <field name="filename"/>
+                <field name="mode"/>
+                <field name="state"/>
+                <field name="total_clients"/>
+                <field name="matched_clients"/>
+                <field name="created_clients"/>
+                <field name="ambiguous_clients"/>
+                <field name="total_invoices"/>
+                <field name="created_invoices"/>
+                <field name="total_transactions"/>
+                <field name="created_transactions"/>
+                <field name="error_count"/>
+                <field name="warning_count"/>
+                <field name="duration" string="Duration (s)"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ====== Import Batch — Form ====== -->
+    <record id="view_whmcs_import_batch_form" model="ir.ui.view">
+        <field name="name">whmcs.import.batch.form</field>
+        <field name="model">whmcs.import.batch</field>
+        <field name="arch" type="xml">
+            <form string="Import Batch">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,analyzing,preview,running,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_logs" type="object"
+                                class="oe_stat_button" icon="fa-list">
+                            <field name="log_count" widget="statinfo" string="Log Entries"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group string="File">
+                            <field name="filename"/>
+                            <field name="mode"/>
+                            <field name="started_at"/>
+                            <field name="finished_at"/>
+                            <field name="duration"/>
+                        </group>
+                        <group string="Options">
+                            <field name="import_clients"/>
+                            <field name="import_invoices"/>
+                            <field name="import_transactions"/>
+                        </group>
+                    </group>
+
+                    <group string="Clients">
+                        <group>
+                            <field name="total_clients"/>
+                            <field name="matched_clients"/>
+                        </group>
+                        <group>
+                            <field name="created_clients"/>
+                            <field name="ambiguous_clients"/>
+                            <field name="error_clients"/>
+                        </group>
+                    </group>
+
+                    <group string="Invoices">
+                        <group>
+                            <field name="total_invoices"/>
+                            <field name="created_invoices"/>
+                        </group>
+                        <group>
+                            <field name="skipped_invoices"/>
+                        </group>
+                    </group>
+
+                    <group string="Transactions">
+                        <group>
+                            <field name="total_transactions"/>
+                            <field name="created_transactions"/>
+                        </group>
+                        <group>
+                            <field name="skipped_transactions"/>
+                        </group>
+                    </group>
+
+                    <group string="Summary">
+                        <field name="error_count"/>
+                        <field name="warning_count"/>
+                    </group>
+
+                    <notebook>
+                        <page string="Import Log">
+                            <field name="log_ids" readonly="1">
+                                <list decoration-success="status == 'ok'"
+                                      decoration-warning="status == 'warning'"
+                                      decoration-danger="status == 'error'"
+                                      decoration-muted="status == 'preview'">
+                                    <field name="entity_type"/>
+                                    <field name="whmcs_id"/>
+                                    <field name="action"/>
+                                    <field name="status"/>
+                                    <field name="message"/>
+                                    <field name="odoo_record_id"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_whmcs_import_batch" model="ir.actions.act_window">
+        <field name="name">Import History</field>
+        <field name="res_model">whmcs.import.batch</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No imports yet. Use <strong>Import Data</strong> to get started.
+            </p>
+        </field>
+    </record>
+
+</odoo>

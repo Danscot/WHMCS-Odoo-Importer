@@ -1,0 +1,221 @@
+{
+  "_comment": "WHMCS Demo Export — ST Digital prototype fixture",
+  "_note": "Contains 3 clients (existing match, new, ambiguous), 3 invoices, 3 transactions",
+
+  "clients": [
+    {
+      "_comment": "Client 1001 — will MATCH an existing Odoo partner by email",
+      "id": 1001,
+      "firstname": "Marie",
+      "lastname": "Ngo",
+      "companyname": "Demo Existing Company SARL",
+      "email": "demo.existing@example.com",
+      "phone": "+237699000001",
+      "address1": "Avenue Kennedy",
+      "address2": "",
+      "city": "Yaoundé",
+      "state": "Centre",
+      "postcode": "",
+      "country": "CM",
+      "tax_id": "M012345678901A",
+      "language": "french"
+    },
+    {
+      "_comment": "Client 1002 — GENUINELY NEW, no matching Odoo partner",
+      "id": 1002,
+      "firstname": "Paul",
+      "lastname": "Biya",
+      "companyname": "Demo New Company SARL",
+      "email": "demo.new@example.com",
+      "phone": "+237677000002",
+      "address1": "Rue de Nachtigal",
+      "address2": "Quartier Bastos",
+      "city": "Yaoundé",
+      "state": "Centre",
+      "postcode": "",
+      "country": "CM",
+      "tax_id": "M098765432101B",
+      "language": "french"
+    },
+    {
+      "_comment": "Client 1003 — AMBIGUOUS: two Odoo contacts share similar identity",
+      "id": 1003,
+      "firstname": "Jean",
+      "lastname": "Dupont",
+      "companyname": "ABC Cameroon",
+      "email": "accounting@abc-cameroon.cm",
+      "phone": "+237622000003",
+      "address1": "Rue de la Réunification",
+      "city": "Douala",
+      "state": "Littoral",
+      "postcode": "",
+      "country": "CM",
+      "tax_id": "",
+      "language": "french"
+    },
+    {
+      "_comment": "Client 1004 — additional new client for volume",
+      "id": 1004,
+      "firstname": "Sophie",
+      "lastname": "Kotto",
+      "companyname": "Kotto Digital SARL",
+      "email": "sophie@kotto-digital.cm",
+      "phone": "+237655000004",
+      "address1": "Bonanjo",
+      "city": "Douala",
+      "country": "CM",
+      "tax_id": "M111222333444C",
+      "language": "french"
+    },
+    {
+      "_comment": "Client 1005 — another new client",
+      "id": 1005,
+      "firstname": "Ibrahim",
+      "lastname": "Toukour",
+      "companyname": "Toukour Tech",
+      "email": "ibrahim@toukour-tech.cm",
+      "phone": "+237688000005",
+      "city": "Garoua",
+      "country": "CM",
+      "tax_id": "",
+      "language": "french"
+    }
+  ],
+
+  "invoices": [
+    {
+      "_comment": "Invoice for Client 1001 (matched) — Paid",
+      "id": 5001,
+      "client_id": 1001,
+      "invoice_number": "INV-5001",
+      "date": "2026-07-01",
+      "due_date": "2026-07-15",
+      "currency": "XAF",
+      "status": "Paid",
+      "total": 150000,
+      "lines": [
+        {
+          "description": "Web Hosting — Annual Plan",
+          "quantity": 1,
+          "unit_price": 150000
+        }
+      ]
+    },
+    {
+      "_comment": "Invoice for Client 1002 (new) — Paid — KEY DEMO INVOICE",
+      "id": 5002,
+      "client_id": 1002,
+      "invoice_number": "INV-5002",
+      "date": "2026-07-15",
+      "due_date": "2026-07-30",
+      "currency": "XAF",
+      "status": "Paid",
+      "total": 300000,
+      "lines": [
+        {
+          "description": "Domain Registration — .cm",
+          "quantity": 1,
+          "unit_price": 50000
+        },
+        {
+          "description": "Web Hosting — Premium Plan",
+          "quantity": 1,
+          "unit_price": 250000
+        }
+      ]
+    },
+    {
+      "_comment": "Invoice for Client 1004 — Unpaid (no payment expected)",
+      "id": 5003,
+      "client_id": 1004,
+      "invoice_number": "INV-5003",
+      "date": "2026-08-01",
+      "due_date": "2026-08-15",
+      "currency": "XAF",
+      "status": "Unpaid",
+      "total": 120000,
+      "lines": [
+        {
+          "description": "Email Hosting — 12 months",
+          "quantity": 1,
+          "unit_price": 120000
+        }
+      ]
+    },
+    {
+      "_comment": "Invoice for Client 1005 — Paid",
+      "id": 5004,
+      "client_id": 1005,
+      "invoice_number": "INV-5004",
+      "date": "2026-08-05",
+      "due_date": "2026-08-20",
+      "currency": "XAF",
+      "status": "Paid",
+      "total": 75000,
+      "lines": [
+        {
+          "description": "SSL Certificate",
+          "quantity": 1,
+          "unit_price": 75000
+        }
+      ]
+    },
+    {
+      "_comment": "Invoice for Client 1001 — Cancelled (should not be posted)",
+      "id": 5005,
+      "client_id": 1001,
+      "invoice_number": "INV-5005",
+      "date": "2026-06-01",
+      "due_date": "2026-06-15",
+      "currency": "XAF",
+      "status": "Cancelled",
+      "total": 50000,
+      "lines": [
+        {
+          "description": "Cancelled Service",
+          "quantity": 1,
+          "unit_price": 50000
+        }
+      ]
+    }
+  ],
+
+  "transactions": [
+    {
+      "_comment": "Payment for Invoice 5001 (Client 1001 — matched)",
+      "id": 9001,
+      "transaction_id": "TXN-DEMO-9001",
+      "client_id": 1001,
+      "invoice_id": 5001,
+      "date": "2026-07-03",
+      "amount": 150000,
+      "currency": "XAF",
+      "gateway": "manual",
+      "description": "Bank transfer — INV-5001"
+    },
+    {
+      "_comment": "Payment for Invoice 5002 (Client 1002 — new) — KEY DEMO TRANSACTION",
+      "id": 9002,
+      "transaction_id": "TXN-DEMO-9002",
+      "client_id": 1002,
+      "invoice_id": 5002,
+      "date": "2026-07-18",
+      "amount": 300000,
+      "currency": "XAF",
+      "gateway": "manual",
+      "description": "Bank transfer — INV-5002"
+    },
+    {
+      "_comment": "Payment for Invoice 5004 (Client 1005)",
+      "id": 9003,
+      "transaction_id": "TXN-DEMO-9003",
+      "client_id": 1005,
+      "invoice_id": 5004,
+      "date": "2026-08-07",
+      "amount": 75000,
+      "currency": "XAF",
+      "gateway": "orangemoney",
+      "description": "Orange Money — INV-5004"
+    }
+  ]
+}

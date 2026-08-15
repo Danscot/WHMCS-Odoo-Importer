@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ====== whmcs.import.config ====== -->
+    <record id="view_whmcs_import_config_form" model="ir.ui.view">
+        <field name="name">whmcs.import.config.form</field>
+        <field name="model">whmcs.import.config</field>
+        <field name="arch" type="xml">
+            <form string="WHMCS Import Configuration">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>WHMCS Import Configuration</h1>
+                    </div>
+
+                    <group string="General">
+                        <group>
+                            <field name="company_id" readonly="1"/>
+                            <field name="default_invoice_journal_id"/>
+                            <field name="default_payment_journal_id"/>
+                        </group>
+                        <group>
+                            <field name="default_product_id"/>
+                            <field name="default_tax_id"/>
+                            <field name="default_currency_id"/>
+                        </group>
+                    </group>
+
+                    <group string="Contact Matching">
+                        <group>
+                            <field name="match_by_whmcs_mapping"/>
+                            <field name="match_by_vat"/>
+                            <field name="match_by_microsoft_id"/>
+                        </group>
+                        <group>
+                            <field name="match_by_email"/>
+                            <field name="match_by_phone"/>
+                            <field name="match_by_composite"/>
+                        </group>
+                    </group>
+
+                    <group string="Payment Gateway Mappings">
+                        <field name="gateway_mapping_ids" nolabel="1">
+                            <list editable="bottom">
+                                <field name="gateway_code"/>
+                                <field name="journal_id"/>
+                                <field name="payment_method_line_id"/>
+                                <field name="active"/>
+                                <field name="notes"/>
+                            </list>
+                        </field>
+                    </group>
+
+                    <group string="Demo">
+                        <field name="demo_mode"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_whmcs_config" model="ir.actions.act_window">
+        <field name="name">Configuration</field>
+        <field name="res_model">whmcs.import.config</field>
+        <field name="view_mode">form</field>
+        <field name="target">main</field>
+    </record>
+
+    <!-- ====== whmcs.gateway.mapping ====== -->
+    <record id="view_whmcs_gateway_mapping_list" model="ir.ui.view">
+        <field name="name">whmcs.gateway.mapping.list</field>
+        <field name="model">whmcs.gateway.mapping</field>
+        <field name="arch" type="xml">
+            <list string="Gateway Mappings" editable="top">
+                <field name="gateway_code"/>
+                <field name="journal_id"/>
+                <field name="payment_method_line_id"/>
+                <field name="active"/>
+                <field name="notes"/>
+            </list>
+        </field>
+    </record>
+
+</odoo>

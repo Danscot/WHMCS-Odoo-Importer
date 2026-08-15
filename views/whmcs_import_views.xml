@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ====== Import Wizard ====== -->
+    <record id="view_whmcs_import_wizard_form" model="ir.ui.view">
+        <field name="name">whmcs.import.wizard.form</field>
+        <field name="model">whmcs.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="WHMCS → Odoo Importer">
+
+                <!-- ========== STEP 1: UPLOAD ========== -->
+                <div invisible="state != 'upload'">
+                    <div class="o_form_view">
+                        <div style="max-width: 640px; margin: 32px auto;">
+                            <div class="text-center mb-4">
+                                <h2 style="color: #875A7B;">
+                                    <i class="fa fa-upload"/> WHMCS → Odoo Importer
+                                </h2>
+                                <p class="text-muted">
+                                    Upload your WHMCS export file to analyze and import clients,
+                                    invoices and transactions into Odoo.
+                                </p>
+                            </div>
+
+                            <div class="card shadow-sm p-4 mb-4">
+                                <h5 class="card-title">
+                                    <i class="fa fa-file-code-o"/> WHMCS Export Files
+                                </h5>
+
+                                <p class="text-muted">
+                                    Upload either one combined JSON export, or the native
+                                    WHMCS CSV exports. You can upload one, two, or all three
+                                    CSV files together.
+                                </p>
+
+                                <div class="alert alert-info">
+                                    <strong>Recommended for CSV exports:</strong>
+                                    upload Clients, Invoices and Transactions separately.
+                                    The importer automatically understands the WHMCS column
+                                    names and links Invoice User ID / Transaction User ID
+                                    back to the WHMCS Client ID.
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Combined JSON (optional)</label>
+                                    <field name="export_file" widget="binary"
+                                           filename="export_filename"
+                                           class="o_field_binary_file"/>
+                                    <field name="export_filename" invisible="1"/>
+                                </div>
+
+                                <hr/>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Clients CSV</label>
+                                    <field name="clients_file" widget="binary"
+                                           filename="clients_filename"
+                                           class="o_field_binary_file"/>
+                                    <field name="clients_filename" invisible="1"/>
+                                    <small class="text-muted">
+                                        Example: Clients → ID, First Name, Last Name, Company Name...
+                                    </small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Invoices CSV</label>
+                                    <field name="invoices_file" widget="binary"
+                                           filename="invoices_filename"
+                                           class="o_field_binary_file"/>
+                                    <field name="invoices_filename" invisible="1"/>
+                                    <small class="text-muted">
+                                        Example: Invoices → ID, User ID, Client Name, Total, Status...
+                                    </small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Transactions CSV</label>
+                                    <field name="transactions_file" widget="binary"
+                                           filename="transactions_filename"
+                                           class="o_field_binary_file"/>
+                                    <field name="transactions_filename" invisible="1"/>
+                                    <small class="text-muted">
+                                        Example: Transactions → ID, User ID, Invoice ID, Amount In...
+                                    </small>
+                                </div>
+
+                                <small class="text-muted">
+                                    Supported formats: JSON and WHMCS CSV exports.
+                                    Do not mix the combined JSON file with CSV files.
+                                </small>
+                            </div>
+
+                            <div class="card shadow-sm p-4 mb-4">
+                                <h5 class="card-title">
+                                    <i class="fa fa-cog"/> Import Mode
+                                </h5>
+                                <field name="mode" widget="radio"/>
+                            </div>
+
+                            <div class="card shadow-sm p-4 mb-4">
+                                <h5 class="card-title">
+                                    <i class="fa fa-check-square-o"/> What to Import
+                                </h5>
+                                <div class="row">
+                                    <div class="col-4">
+                                        <field name="import_clients"/>
+                                        <label for="import_clients"/>
+                                    </div>
+                                    <div class="col-4">
+                                        <field name="import_invoices"/>
+                                        <label for="import_invoices"/>
+                                    </div>
+                                    <div class="col-4">
+                                        <field name="import_transactions"/>
+                                        <label for="import_transactions"/>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="text-center">
+                                <button name="action_analyze" type="object"
+                                        class="btn btn-primary btn-lg"
+                                        string="Analyze Export"
+                                        icon="fa-search"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== STEP 2: PREVIEW ========== -->
+                <div invisible="state != 'preview'">
+                    <div class="o_form_view">
+                        <div style="max-width: 640px; margin: 32px auto;">
+                            <div class="text-center mb-4">
+                                <h2 style="color: #875A7B;">
+                                    <i class="fa fa-eye"/> Import Preview
+                                </h2>
+                                <p class="text-muted">
+                                    Review the analysis results below before importing.
+                                    No data has been created yet.
+                                </p>
+                            </div>
+
+                            <!-- Clients card -->
+                            <div class="card shadow-sm p-4 mb-3">
+                                <h5 class="card-title">
+                                    <i class="fa fa-users"/> Clients
+                                </h5>
+                                <div class="row text-center">
+                                    <div class="col-3">
+                                        <div style="font-size: 2rem; font-weight: bold; color: #875A7B;">
+                                            <field name="preview_total_clients" readonly="1"/>
+                                        </div>
+                                        <small class="text-muted">Total</small>
+                                    </div>
+                                    <div class="col-3">
+                                        <div style="font-size: 2rem; font-weight: bold; color: #28a745;">
+                                            <field name="preview_matched" readonly="1"/>
+                                        </div>
+                                        <small class="text-muted">Existing</small>
+                                    </div>
+                                    <div class="col-3">
+                                        <div style="font-size: 2rem; font-weight: bold; color: #007bff;">
+                                            <field name="preview_new" readonly="1"/>
+                                        </div>
+                                        <small class="text-muted">New</small>
+                                    </div>
+                                    <div class="col-3">
+                                        <div style="font-size: 2rem; font-weight: bold; color: #fd7e14;">
+                                            <field name="preview_ambiguous" readonly="1"/>
+                                        </div>
+                                        <small class="text-muted">Ambiguous</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Invoices card -->
+                            <div class="card shadow-sm p-4 mb-3">
+                                <h5 class="card-title">
+                                    <i class="fa fa-file-text-o"/> Invoices
+                                </h5>
+                                <div class="row text-center">
+                                    <div class="col-4">
+                                        <div style="font-size: 2rem; font-weight: bold; color: #875A7B;">
+                                            <field name="preview_total_invoices" readonly="1"/>
+                                        </div>
+                                        <small class="text-muted">Total</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <div style="font-size: 2rem; font-weight: bold; color: #28a745;">
+                                            <field name="preview_invoices_ready" readonly="1"/>
+                                        </div>
+                                        <small class="text-muted">Ready</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <div style="font-size: 2rem; font-weight: bold; color: #6c757d;">
+                                            <field name="preview_invoices_skipped" readonly="1"/>
+                                        </div>
+                                        <small class="text-muted">Skipped</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Transactions card -->
+                            <div class="card shadow-sm p-4 mb-3">
+                                <h5 class="card-title">
+                                    <i class="fa fa-credit-card"/> Transactions
+                                </h5>
+                                <div class="row text-center">
+                                    <div class="col-4">
+                                        <div style="font-size: 2rem; font-weight: bold; color: #875A7B;">
+                                            <field name="preview_total_txns" readonly="1"/>
+                                        </div>
+                                        <small class="text-muted">Total</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <div style="font-size: 2rem; font-weight: bold; color: #28a745;">
+                                            <field name="preview_txns_ready" readonly="1"/>
+                                        </div>
+                                        <small class="text-muted">Ready</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <div style="font-size: 2rem; font-weight: bold; color: #6c757d;">
+                                            <field name="preview_txns_skipped" readonly="1"/>
+                                        </div>
+                                        <small class="text-muted">Skipped</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Warnings/Errors -->
+                            <div class="alert alert-warning" invisible="preview_warnings == 0 and preview_errors == 0">
+                                <i class="fa fa-exclamation-triangle"/>
+                                <field name="preview_warnings" readonly="1"/> warnings,
+                                <field name="preview_errors" readonly="1"/> errors detected.
+                                Review the batch log for details.
+                            </div>
+
+                            <div class="text-center mt-3">
+                                <button name="action_back" type="object"
+                                        class="btn btn-secondary mr-2"
+                                        string="← Back"/>
+                                <button name="action_view_batch" type="object"
+                                        class="btn btn-outline-primary mr-2"
+                                        string="View Analysis Log"/>
+                                <button name="action_import" type="object"
+                                        class="btn btn-success btn-lg"
+                                        string="Import Now"
+                                        icon="fa-check"
+                                        confirm="This will create records in Odoo. Continue?"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== STEP 3: DONE ========== -->
+                <div invisible="state != 'done'">
+                    <div class="o_form_view">
+                        <div style="max-width: 640px; margin: 32px auto;">
+                            <div class="text-center mb-4">
+                                <i class="fa fa-check-circle fa-4x text-success"/>
+                                <h2 class="mt-3" style="color: #28a745;">Import Completed</h2>
+                            </div>
+
+                            <div class="card shadow-sm p-4 mb-4">
+                                <field name="result_message" widget="text" readonly="1"
+                                       style="white-space: pre-line; font-family: monospace;"/>
+                            </div>
+
+                            <div class="text-center">
+                                <button name="action_view_batch" type="object"
+                                        class="btn btn-primary"
+                                        string="View Import Report"
+                                        icon="fa-list"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hidden state field -->
+                <field name="state" invisible="1"/>
+                <field name="batch_id" invisible="1"/>
+
+            </form>
+        </field>
+    </record>
+
+    <record id="action_whmcs_import_wizard" model="ir.actions.act_window">
+        <field name="name">Import Data</field>
+        <field name="res_model">whmcs.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="context">{'dialog_size': 'extra-large'}</field>
+    </record>
+
+</odoo>

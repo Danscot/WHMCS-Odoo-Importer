@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Demo data loaded only when Odoo is started in demo mode.
+        Creates partners needed for the management showcase:
+        * One partner that will be MATCHED by email
+        * Two near-identical partners that will cause AMBIGUOUS detection
+    -->
+
+    <!-- ================================================
+         Partner 1: will be MATCHED to WHMCS client 1001
+         by email exact match (Level 4)
+    ================================================= -->
+    <record id="demo_partner_existing" model="res.partner">
+        <field name="name">Demo Existing Company SARL</field>
+        <field name="is_company">True</field>
+        <field name="email">demo.existing@example.com</field>
+        <field name="phone">+237699000001</field>
+        <field name="street">Avenue Kennedy</field>
+        <field name="city">Yaoundé</field>
+        <field name="customer_rank">1</field>
+        <field name="vat">M012345678901A</field>
+        <field name="comment">
+            Pre-created demo partner.
+            WHMCS client 1001 will MATCH this record by VAT or email.
+            No new partner will be created — proving duplicate protection.
+        </field>
+    </record>
+
+    <!-- ================================================
+         Partners 2 & 3: AMBIGUOUS — same company name,
+         matching WHMCS client 1003 by name.
+         The importer must NOT choose automatically.
+    ================================================= -->
+    <record id="demo_partner_ambiguous_1" model="res.partner">
+        <field name="name">ABC Cameroon</field>
+        <field name="is_company">True</field>
+        <field name="email">info@abc-cameroon.cm</field>
+        <field name="phone">+237622000099</field>
+        <field name="city">Douala</field>
+        <field name="customer_rank">1</field>
+        <field name="comment">
+            AMBIGUOUS demo partner A.
+            When WHMCS client 1003 (ABC Cameroon) is imported, both this record
+            and demo_partner_ambiguous_2 will be candidate matches.
+            The importer must flag AMBIGUOUS and not auto-select.
+        </field>
+    </record>
+
+    <record id="demo_partner_ambiguous_2" model="res.partner">
+        <field name="name">ABC Cameroon</field>
+        <field name="is_company">True</field>
+        <field name="email">contact@abc-cameroon.cm</field>
+        <field name="phone">+237622000088</field>
+        <field name="city">Douala</field>
+        <field name="customer_rank">1</field>
+        <field name="comment">
+            AMBIGUOUS demo partner B.
+            Intentionally has the same name as demo_partner_ambiguous_1
+            to trigger the ambiguity detection in the importer.
+        </field>
+    </record>
+
+</odoo>

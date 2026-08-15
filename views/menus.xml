@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ====== Root Application Menu ====== -->
+    <menuitem
+        id="menu_whmcs_root"
+        name="WHMCS Import"
+        sequence="90"
+        groups="whmcs_odoo_import.group_whmcs_import_user"
+        web_icon="whmcs_odoo_import,static/description/icon.png"/>
+
+    <!-- ====== Dashboard ====== -->
+    <menuitem
+        id="menu_whmcs_dashboard"
+        name="Dashboard"
+        parent="menu_whmcs_root"
+        action="action_whmcs_import_batch"
+        sequence="10"
+        groups="whmcs_odoo_import.group_whmcs_import_user"/>
+
+    <!-- ====== Import Data ====== -->
+    <menuitem
+        id="menu_whmcs_import"
+        name="Import Data"
+        parent="menu_whmcs_root"
+        action="action_whmcs_import_wizard"
+        sequence="20"
+        groups="whmcs_odoo_import.group_whmcs_import_user"/>
+
+    <!-- ====== Import History ====== -->
+    <menuitem
+        id="menu_whmcs_history"
+        name="Import History"
+        parent="menu_whmcs_root"
+        action="action_whmcs_import_batch"
+        sequence="30"
+        groups="whmcs_odoo_import.group_whmcs_import_user"/>
+
+    <!-- ====== Mappings submenu ====== -->
+    <menuitem
+        id="menu_whmcs_mappings"
+        name="Mappings"
+        parent="menu_whmcs_root"
+        sequence="40"
+        groups="whmcs_odoo_import.group_whmcs_import_manager"/>
+
+    <menuitem
+        id="menu_whmcs_client_mappings"
+        name="Client Mappings"
+        parent="menu_whmcs_mappings"
+        action="action_whmcs_partner_mappings"
+        sequence="41"/>
+
+    <menuitem
+        id="menu_whmcs_invoice_mappings"
+        name="Invoice Mappings"
+        parent="menu_whmcs_mappings"
+        action="action_whmcs_invoice_mappings"
+        sequence="42"/>
+
+    <menuitem
+        id="menu_whmcs_transaction_mappings"
+        name="Transaction Mappings"
+        parent="menu_whmcs_mappings"
+        action="action_whmcs_transaction_mappings"
+        sequence="43"/>
+
+    <!-- ====== Configuration ====== -->
+    <menuitem
+        id="menu_whmcs_config"
+        name="Configuration"
+        parent="menu_whmcs_root"
+        action="action_whmcs_config"
+        sequence="50"
+        groups="whmcs_odoo_import.group_whmcs_import_manager"/>
+
+</odoo>

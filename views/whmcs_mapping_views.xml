@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ====== Partner Mappings ====== -->
+    <record id="view_whmcs_partner_mapping_list" model="ir.ui.view">
+        <field name="name">whmcs.partner.mapping.list</field>
+        <field name="model">whmcs.partner.mapping</field>
+        <field name="arch" type="xml">
+            <list string="Client Mappings">
+                <field name="whmcs_client_id"/>
+                <field name="partner_id"/>
+                <field name="odoo_reference"/>
+                <field name="match_method"/>
+                <field name="confidence"/>
+                <field name="created_by_import"/>
+                <field name="create_date"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_whmcs_partner_mapping_form" model="ir.ui.view">
+        <field name="name">whmcs.partner.mapping.form</field>
+        <field name="model">whmcs.partner.mapping</field>
+        <field name="arch" type="xml">
+            <form string="Client Mapping">
+                <sheet>
+                    <group>
+                        <group string="WHMCS">
+                            <field name="whmcs_client_id"/>
+                        </group>
+                        <group string="Odoo">
+                            <field name="partner_id"/>
+                            <field name="odoo_reference"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="match_method"/>
+                        <field name="confidence"/>
+                        <field name="created_by_import"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_whmcs_partner_mappings" model="ir.actions.act_window">
+        <field name="name">Client Mappings</field>
+        <field name="res_model">whmcs.partner.mapping</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ====== Invoice Mappings ====== -->
+    <record id="view_whmcs_invoice_mapping_list" model="ir.ui.view">
+        <field name="name">whmcs.invoice.mapping.list</field>
+        <field name="model">whmcs.invoice.mapping</field>
+        <field name="arch" type="xml">
+            <list string="Invoice Mappings">
+                <field name="whmcs_invoice_id"/>
+                <field name="whmcs_invoice_number"/>
+                <field name="invoice_id"/>
+                <field name="status"/>
+                <field name="create_date"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_whmcs_invoice_mappings" model="ir.actions.act_window">
+        <field name="name">Invoice Mappings</field>
+        <field name="res_model">whmcs.invoice.mapping</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ====== Transaction Mappings ====== -->
+    <record id="view_whmcs_transaction_mapping_list" model="ir.ui.view">
+        <field name="name">whmcs.transaction.mapping.list</field>
+        <field name="model">whmcs.transaction.mapping</field>
+        <field name="arch" type="xml">
+            <list string="Transaction Mappings">
+                <field name="whmcs_transaction_id"/>
+                <field name="transaction_reference"/>
+                <field name="payment_id"/>
+                <field name="invoice_id"/>
+                <field name="status"/>
+                <field name="create_date"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_whmcs_transaction_mappings" model="ir.actions.act_window">
+        <field name="name">Transaction Mappings</field>
+        <field name="res_model">whmcs.transaction.mapping</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ====== Combined Mappings page ====== -->
+    <record id="action_whmcs_all_mappings" model="ir.actions.act_window">
+        <field name="name">Mappings</field>
+        <field name="res_model">whmcs.partner.mapping</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

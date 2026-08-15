@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ====================================================
+         Default "WHMCS Imported Service" product
+         Used as fallback when no Odoo product maps to a
+         WHMCS invoice line.
+         Note: invoice_policy is provided by the Sales module. This
+         importer depends on Accounting/Product only, so the field is
+         intentionally not set here. It is not needed to create invoices
+         directly with account.move.
+    ======================================================= -->
+    <record id="product_whmcs_imported_service" model="product.template">
+        <field name="name">WHMCS Imported Service</field>
+        <field name="type">service</field>
+        <field name="description_sale">
+            Default service product used for WHMCS imported invoice lines.
+            Replace with a specific product mapping in WHMCS Import → Configuration.
+        </field>
+        <field name="active">True</field>
+    </record>
+
+</odoo>

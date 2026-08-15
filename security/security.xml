@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Odoo 19 changed the security-group hierarchy.
+
+        res.groups no longer has category_id. Groups belong to a
+        res.groups.privilege, and the privilege belongs to an
+        ir.module.category.
+    -->
+    <record id="module_category_whmcs_import" model="ir.module.category">
+        <field name="name">WHMCS Import</field>
+        <field name="sequence">90</field>
+    </record>
+
+    <!-- Odoo 19 replacement for assigning a group directly to a category. -->
+    <record id="privilege_whmcs_import" model="res.groups.privilege">
+        <field name="name">WHMCS Import</field>
+        <field name="category_id" ref="module_category_whmcs_import"/>
+        <field name="sequence">90</field>
+    </record>
+
+    <!-- User Group -->
+    <record id="group_whmcs_import_user" model="res.groups">
+        <field name="name">WHMCS Import User</field>
+        <field name="privilege_id" ref="privilege_whmcs_import"/>
+        <field name="sequence">10</field>
+        <field name="comment">Can run WHMCS imports and view history.</field>
+    </record>
+
+    <!-- Manager Group -->
+    <record id="group_whmcs_import_manager" model="res.groups">
+        <field name="name">WHMCS Import Manager</field>
+        <field name="privilege_id" ref="privilege_whmcs_import"/>
+        <field name="sequence">20</field>
+        <field name="implied_ids" eval="[(4, ref('group_whmcs_import_user'))]"/>
+        <field name="comment">Can configure mappings and import settings.</field>
+    </record>
+
+</odoo>
