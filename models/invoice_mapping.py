@@ -26,10 +26,7 @@ class WhmcsInvoiceMapping(models.Model):
     whmcs_invoice_number = fields.Char("WHMCS Invoice Number")
     status = fields.Char("WHMCS Status at Import")
 
-    _sql_constraints = [
-        (
-            "whmcs_invoice_id_unique",
-            "UNIQUE(whmcs_invoice_id)",
-            "Each WHMCS invoice may only be imported once.",
-        )
-    ]
+    _whmcs_invoice_id_unique = models.Constraint(
+        "UNIQUE(whmcs_invoice_id)",
+        "Each WHMCS invoice may only be imported once.",
+    )

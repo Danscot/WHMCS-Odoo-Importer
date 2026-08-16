@@ -1,3 +1,16 @@
+# WHMCS → Odoo Importer — 19.0.1.2.0
+
+Odoo 19 compatibility and native WHMCS CSV bundle support.
+
+## 19.0.1.2.0 fixes
+- Fixed Odoo 19 form-view label validation.
+- Fixed Odoo 19 alert accessibility validation.
+- Replaced deprecated `_sql_constraints` with `models.Constraint`.
+- Correctly parses the `Clients`, `Invoices`, and `Transactions` title rows used by native WHMCS CSV exports.
+- Correctly maps WHMCS `User ID` and `Invoice ID` relationships.
+- Rejects CSV records without valid IDs instead of creating client ID 0 records.
+- Tested against the supplied exports: 1,936 clients, 1,527 invoices, 967 transactions.
+
 # WHMCS → Odoo Importer
 
 **Module:** `whmcs_odoo_import`  

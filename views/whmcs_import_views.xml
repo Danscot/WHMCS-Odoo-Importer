@@ -33,7 +33,7 @@
                                     CSV files together.
                                 </p>
 
-                                <div class="alert alert-info">
+                                <div class="alert alert-info" role="alert">
                                     <strong>Recommended for CSV exports:</strong>
                                     upload Clients, Invoices and Transactions separately.
                                     The importer automatically understands the WHMCS column
@@ -42,7 +42,7 @@
                                 </div>
 
                                 <div class="mb-3">
-                                    <label class="form-label fw-bold">Combined JSON (optional)</label>
+                                    <label for="export_file" class="o_form_label">Combined JSON (optional)</label>
                                     <field name="export_file" widget="binary"
                                            filename="export_filename"
                                            class="o_field_binary_file"/>
@@ -52,7 +52,7 @@
                                 <hr/>
 
                                 <div class="mb-3">
-                                    <label class="form-label fw-bold">Clients CSV</label>
+                                    <label for="clients_file" class="o_form_label">Clients CSV</label>
                                     <field name="clients_file" widget="binary"
                                            filename="clients_filename"
                                            class="o_field_binary_file"/>
@@ -63,7 +63,7 @@
                                 </div>
 
                                 <div class="mb-3">
-                                    <label class="form-label fw-bold">Invoices CSV</label>
+                                    <label for="invoices_file" class="o_form_label">Invoices CSV</label>
                                     <field name="invoices_file" widget="binary"
                                            filename="invoices_filename"
                                            class="o_field_binary_file"/>
@@ -74,7 +74,7 @@
                                 </div>
 
                                 <div class="mb-3">
-                                    <label class="form-label fw-bold">Transactions CSV</label>
+                                    <label for="transactions_file" class="o_form_label">Transactions CSV</label>
                                     <field name="transactions_file" widget="binary"
                                            filename="transactions_filename"
                                            class="o_field_binary_file"/>
