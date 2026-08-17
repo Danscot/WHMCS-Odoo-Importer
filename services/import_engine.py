@@ -172,13 +172,21 @@ class ImportEngine:
                             message=f"Created Odoo partner {partner.ref or '(ref pending)'}",
                         )
                     else:
+                        # Dry-run must still provide a resolvable partner identity
+                        # to downstream invoice/payment preview phases.  We use a
+                        # deterministic negative sentinel that can never be a real
+                        # Odoo res.partner id.  It lives only in memory and is never
+                        # passed to ORM create/write calls.
+                        preview_partner_id = self._preview_partner_id(client.whmcs_id)
+                        resolution["partner_id"] = preview_partner_id
+                        resolution["preview"] = True
                         summary["created_clients"] += 1   # predicted
                         self._log(
                             entity_type="client",
                             whmcs_id=client.whmcs_id,
                             action="created",
                             status="preview",
-                            message="[DRY RUN] Would create new partner",
+                            message=f"[DRY RUN] Would create new partner (preview id {preview_partner_id})",
                         )
 
                 self._savepoint_release(sp_name)
@@ -202,6 +210,24 @@ class ImportEngine:
                     status="error",
                     message=str(exc),
                 )
+
+    @staticmethod
+    def _preview_partner_id(whmcs_client_id):
+        """Return a deterministic in-memory-only partner sentinel for Dry Run."""
+        try:
+            return -abs(int(whmcs_client_id))
+        except (TypeError, ValueError):
+            # WHMCS IDs are normally integers, but keep the preview path safe if
+            # a future export contains a non-numeric identifier.
+            return -abs(hash(str(whmcs_client_id)) or 1)
+
+    @staticmethod
+    def _preview_invoice_id(whmcs_invoice_id):
+        """Return a deterministic in-memory-only invoice sentinel for Dry Run."""
+        try:
+            return -abs(int(whmcs_invoice_id))
+        except (TypeError, ValueError):
+            return -abs(hash(str(whmcs_invoice_id)) or 1)
 
     def _partner_id_for_whmcs_client(self, whmcs_client_id):
         """
@@ -292,8 +318,15 @@ class ImportEngine:
                         status="preview",
                         message=f"[DRY RUN] Would create invoice for partner {partner_id}",
                     )
+                    # Keep a virtual invoice identity so transactions in the
+                    # same Dry Run can resolve their Invoice ID → invoice link.
+                    # This sentinel is never sent to Odoo ORM and is discarded
+                    # when the engine instance ends.
+                    preview_invoice_id = self._preview_invoice_id(invoice.whmcs_invoice_id)
                     self.invoice_results[invoice.whmcs_invoice_id] = {
-                        "status": "preview", "move_id": None,
+                        "status": "preview",
+                        "move_id": preview_invoice_id,
+                        "preview": True,
                     }
                     continue
 
@@ -412,12 +445,20 @@ class ImportEngine:
 
                 if self.dry_run:
                     summary["created_transactions"] += 1
+                    invoice_note = (
+                        f" linked to preview invoice {odoo_invoice_id}"
+                        if odoo_invoice_id
+                        else " (no linked invoice)"
+                    )
                     self._log(
                         entity_type="transaction",
                         whmcs_id=txn.whmcs_transaction_id,
                         action="created",
                         status="preview",
-                        message=f"[DRY RUN] Would create payment via gateway '{txn.gateway}'",
+                        message=(
+                            f"[DRY RUN] Would create payment via gateway '{txn.gateway}'"
+                            f"{invoice_note}"
+                        ),
                     )
                     self.transaction_results[txn.whmcs_transaction_id] = {
                         "status": "preview", "payment_id": None,
