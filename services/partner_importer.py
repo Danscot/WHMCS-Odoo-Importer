@@ -64,8 +64,13 @@ class PartnerImporter:
             vals["email"] = client.email.strip().lower()
         if client.phone:
             vals["phone"] = client.phone.strip()
-        if client.mobile:
+        # Odoo 19 no longer provides the standard res.partner.mobile field.
+        # Only write it when a custom module has explicitly added it; otherwise
+        # keep the WHMCS number in the native phone field.
+        if client.mobile and "mobile" in self.env["res.partner"]._fields:
             vals["mobile"] = client.mobile.strip()
+        elif client.mobile and not client.phone:
+            vals["phone"] = client.mobile.strip()
 
         # Address
         if client.address1:

@@ -170,9 +170,11 @@ class PartnerResolver:
             return {}
 
         candidates = {}
-        for p in self.env["res.partner"].search([]):
-            p_phone = normalize_phone(p.phone)
-            p_mobile = normalize_phone(p.mobile)
+        partner_model = self.env["res.partner"]
+        has_mobile = "mobile" in partner_model._fields
+        for p in partner_model.search([]):
+            p_phone = normalize_phone(p.phone or "")
+            p_mobile = normalize_phone(getattr(p, "mobile", "") if has_mobile else "")
             if (norm_phone and p_phone and norm_phone == p_phone) or \
                (norm_mobile and p_mobile and norm_mobile == p_mobile):
                 candidates[p.id] = p
@@ -201,10 +203,12 @@ class PartnerResolver:
         refined = []
         for p in name_matches:
             email_match = client.normalized_email and ne(p.email) == client.normalized_email
+            has_mobile = "mobile" in self.env["res.partner"]._fields
+            partner_mobile = getattr(p, "mobile", "") if has_mobile else ""
             phone_match = (
-                (client.normalized_phone and normalize_phone(p.phone) == client.normalized_phone)
+                (client.normalized_phone and normalize_phone(p.phone or "") == client.normalized_phone)
                 or
-                (client.normalized_mobile and normalize_phone(p.mobile) == client.normalized_mobile)
+                (client.normalized_mobile and partner_mobile and normalize_phone(partner_mobile) == client.normalized_mobile)
             )
             if email_match or phone_match:
                 refined.append(p)
