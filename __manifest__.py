@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "WHMCS → Odoo Importer",
-    "version": "19.0.1.2.2",
+    "version": "19.0.1.4.0",
     "summary": "Import WHMCS clients, invoices and transactions into Odoo",
     "description": """
 WHMCS → Odoo Importer

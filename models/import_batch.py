@@ -4,6 +4,7 @@ WHMCS Import Batch.
 
 One record per import run. Tracks state, statistics and logs.
 """
+import base64
 import logging
 from odoo import api, fields, models, _
 
@@ -68,6 +69,26 @@ class WhmcsImportBatch(models.Model):
     # ---- Logs ----
     log_ids = fields.One2many("whmcs.import.log", "batch_id", string="Import Log")
 
+    # Source payload retained for asynchronous imports. Binary fields keep the
+    # HTTP request short: the real import is executed by an Odoo cron worker.
+    source_json = fields.Binary("Combined WHMCS JSON", attachment=True, readonly=True)
+    source_json_filename = fields.Char(readonly=True)
+    clients_csv = fields.Binary("Clients CSV", attachment=True, readonly=True)
+    clients_csv_filename = fields.Char(readonly=True)
+    invoices_csv = fields.Binary("Invoices CSV", attachment=True, readonly=True)
+    invoices_csv_filename = fields.Char(readonly=True)
+    transactions_csv = fields.Binary("Transactions CSV", attachment=True, readonly=True)
+    transactions_csv_filename = fields.Char(readonly=True)
+    import_cron_id = fields.Many2one("ir.cron", string="Background Job", readonly=True, ondelete="set null")
+    background_setup_done = fields.Boolean(
+        "Background Setup Done", default=False, readonly=True,
+        help="Partners/invoices have been processed for the asynchronous import."
+    )
+    transaction_offset = fields.Integer(
+        "Transaction Offset", default=0, readonly=True,
+        help="Number of WHMCS transactions already handled by background cron runs."
+    )
+
     # ---- Computed status ----
     log_count = fields.Integer(compute="_compute_log_count", string="Log Entries")
     duration = fields.Float("Duration (s)", compute="_compute_duration", store=True)
@@ -95,6 +116,114 @@ class WhmcsImportBatch(models.Model):
             "domain": [("batch_id", "=", self.id)],
             "context": {"default_batch_id": self.id},
         }
+
+
+    def _run_import_job(self):
+        """Process a bounded slice of the import from an Odoo 19 cron worker.
+
+        Odoo 19 cron jobs have a progress API. We deliberately process only a
+        small number of WHMCS transactions per cron callback, persist the
+        cursor on this batch, commit, and tell the scheduler how much remains.
+        The scheduler then invokes this method again ASAP until the import is
+        complete. This avoids long-running cron workers and the closed-cursor
+        cascade seen when a job exceeds the worker real-time limit.
+        """
+        self.ensure_one()
+        if self.state != "running":
+            return
+
+        cron_id = self.env.context.get("cron_id")
+        cron = self.env["ir.cron"].browse(cron_id).exists() if cron_id else self.env["ir.cron"]
+        try:
+            from ..services.whmcs_parser import WhmcsParser
+            from ..services.import_engine import ImportEngine
+
+            parser = WhmcsParser()
+            if self.source_json:
+                export = parser.parse_bytes(
+                    base64.b64decode(self.source_json),
+                    filename=self.source_json_filename or "export.json",
+                )
+            else:
+                export = parser.parse_uploaded_csvs(
+                    clients_content=base64.b64decode(self.clients_csv) if self.clients_csv else None,
+                    clients_filename=self.clients_csv_filename or "",
+                    invoices_content=base64.b64decode(self.invoices_csv) if self.invoices_csv else None,
+                    invoices_filename=self.invoices_csv_filename or "",
+                    transactions_content=base64.b64decode(self.transactions_csv) if self.transactions_csv else None,
+                    transactions_filename=self.transactions_csv_filename or "",
+                )
+
+            config = self.env["whmcs.import.config"].get_config()
+            limit = max(1, int(getattr(config, "transaction_cron_limit", 10) or 10))
+            offset = max(0, self.transaction_offset)
+
+            engine = ImportEngine(self.env, self, config, dry_run=False)
+            summary = engine.run(
+                export,
+                import_clients=self.import_clients and not self.background_setup_done,
+                import_invoices=self.import_invoices and not self.background_setup_done,
+                import_transactions=self.import_transactions,
+                transaction_offset=offset,
+                transaction_limit=limit,
+            )
+
+            processed = summary.pop("processed_transaction_count", 0)
+            total_transactions = summary.get("total_transactions", len(export.transactions))
+            new_offset = min(offset + processed, total_transactions)
+            remaining = max(total_transactions - new_offset, 0) if self.import_transactions else 0
+            finished = remaining == 0
+
+            # Persist progress before calling the cron progress API.
+            vals = {
+                "background_setup_done": True,
+                "transaction_offset": new_offset,
+            }
+            if finished:
+                vals["finished_at"] = fields.Datetime.now()
+            self._apply_summary_increment(summary, finished=finished)
+            self.write(vals)
+
+            if cron:
+                cron._commit_progress(processed=processed, remaining=remaining, deactivate=finished)
+            else:
+                self.env.cr.commit()
+
+            _logger.info(
+                "WHMCS background import batch %s progress: %s/%s transactions, %s remaining",
+                self.id, new_offset, total_transactions, remaining,
+            )
+        except Exception:
+            _logger.exception("WHMCS background import batch %s failed", self.id)
+            try:
+                self.write({"state": "failed", "finished_at": fields.Datetime.now()})
+                self.env.cr.commit()
+            except Exception:
+                _logger.exception("Could not mark WHMCS batch %s as failed", self.id)
+            raise
+
+    def _apply_summary_increment(self, summary: dict, finished=False):
+        """Accumulate one background slice into the persistent batch counters."""
+        vals = {}
+        for key in (
+            "total_clients", "matched_clients", "created_clients", "ambiguous_clients",
+            "error_clients", "total_invoices", "created_invoices", "skipped_invoices",
+            "total_transactions", "created_transactions", "skipped_transactions",
+            "error_count", "warning_count",
+        ):
+            if key == "total_transactions":
+                vals[key] = summary.get(key, 0)
+            else:
+                vals[key] = getattr(self, key) + summary.get(key, 0)
+
+        errors = vals["error_count"]
+        warnings = vals["warning_count"]
+        vals["state"] = (
+            "done_with_warnings" if finished and (errors or warnings)
+            else "done" if finished
+            else "running"
+        )
+        self.write(vals)
 
     def _apply_summary(self, summary: dict):
         """Write engine summary stats to this batch record."""

@@ -13,6 +13,8 @@ can occur automatically through Odoo's standard mechanisms.
 import logging
 from datetime import date
 
+from odoo import fields
+
 from .normalizer import NormalizedTransaction
 
 _logger = logging.getLogger(__name__)
@@ -23,95 +25,91 @@ class PaymentImporter:
     def __init__(self, env, config):
         self.env = env
         self.config = config
+        self._currency_cache = {}
+        self._journal_cache = {}
 
-    def create_payment(
-        self,
-        txn: NormalizedTransaction,
-        partner_id: int,
-        invoice_id: int = None,
-    ) -> "account.payment":
-        """
-        Create and post an inbound account.payment.
-
-        :param txn: NormalizedTransaction
-        :param partner_id: resolved Odoo res.partner ID
-        :param invoice_id: Odoo account.move ID to reconcile with (optional)
-        :returns: posted account.payment record
-        """
-        _logger.info(
-            "Creating payment for WHMCS transaction %s, partner %s",
-            txn.whmcs_transaction_id, partner_id,
+    def create_payment(self, txn: NormalizedTransaction, partner_id: int, invoice_id: int = None):
+        """Create, post and optionally reconcile one inbound payment."""
+        payment = self.env["account.payment"].create(
+            self.build_payment_vals(txn, partner_id)
         )
+        payment.action_post()
+        if invoice_id:
+            self._reconcile_with_invoice(payment, invoice_id)
+        return payment
 
-        # Resolve journal from gateway mapping
+    def build_payment_vals(self, txn: NormalizedTransaction, partner_id: int) -> dict:
+        """Build an Odoo account.payment payload without performing a create."""
         journal = self._resolve_journal(txn.gateway)
         if not journal:
             raise ValueError(
-                f"No Odoo journal mapped to WHMCS gateway '{txn.gateway}'. "
-                f"Configure it in WHMCS Import → Configuration → Payment Gateways."
+                f"No bank/cash journal is configured for WHMCS gateway '{txn.gateway or 'default'}'."
             )
+        payment_method_line = self._resolve_payment_method_line(journal)
+        if not payment_method_line:
+            raise ValueError(f"Journal '{journal.display_name}' has no inbound payment method line.")
 
-        # Resolve currency
-        currency = self._resolve_currency(txn.currency)
-
-        # Build payment vals
         vals = {
             "payment_type": "inbound",
             "partner_type": "customer",
-            "partner_id": partner_id,
-            "amount": txn.amount,
-            "date": txn.date or str(date.today()),
+            "partner_id": int(partner_id),
+            "amount": float(txn.amount),
+            "date": txn.date or date.today().isoformat(),
             "journal_id": journal.id,
-            "ref": txn.transaction_reference or f"WHMCS-TXN-{txn.whmcs_transaction_id}",
+            "payment_method_line_id": payment_method_line.id,
+            "memo": txn.transaction_reference or txn.description or f"WHMCS transaction {txn.whmcs_transaction_id}",
         }
+        if txn.currency:
+            currency = self._resolve_currency(txn.currency)
+            if currency:
+                vals["currency_id"] = currency.id
+        return vals
 
-        if currency:
-            vals["currency_id"] = currency.id
+    def create_payments_batch(self, chunk):
+        """Create and post a chunk of payments with one ORM create call."""
+        if not chunk:
+            return self.env["account.payment"]
+        vals_list = [self.build_payment_vals(txn, partner_id) for txn, partner_id, _invoice_id in chunk]
+        _logger.info("Creating payment batch of %s records", len(vals_list))
+        payments = self.env["account.payment"].create(vals_list)
+        payments.action_post()
 
-        # Payment method line
-        pml = self._resolve_payment_method_line(journal)
-        if pml:
-            vals["payment_method_line_id"] = pml.id
+        for (txn, _partner_id, invoice_id), payment in zip(chunk, payments):
+            if invoice_id:
+                self._reconcile_with_invoice(payment, invoice_id)
 
-        # Create the payment record
-        payment = self.env["account.payment"].create(vals)
-        _logger.info(
-            "Created payment id=%s for WHMCS transaction %s",
-            payment.id, txn.whmcs_transaction_id,
-        )
-
-        # Post the payment (moves it from draft to posted state)
-        payment.action_post()
-        _logger.info("Posted payment %s", payment.id)
-
-        # Attempt reconciliation with invoice if provided
-        if invoice_id:
-            self._reconcile_with_invoice(payment, invoice_id)
-
-        return payment
+        _logger.info("Created payment batch: %s records", len(payments))
+        return payments
 
     def _resolve_journal(self, gateway_code: str):
         """Look up gateway → journal mapping; fall back to default payment journal."""
+        gateway_key = (gateway_code or "").strip().lower()
+        if gateway_key in self._journal_cache:
+            return self._journal_cache[gateway_key]
         if gateway_code:
             mapping = self.env["whmcs.gateway.mapping"].search(
                 [("gateway_code", "=", gateway_code), ("active", "=", True)],
                 limit=1,
             )
             if mapping and mapping.journal_id:
+                self._journal_cache[gateway_key] = mapping.journal_id
                 return mapping.journal_id
 
         # Fall back to configured default payment journal
         if self.config and self.config.default_payment_journal_id:
+            self._journal_cache[gateway_key] = self.config.default_payment_journal_id
             return self.config.default_payment_journal_id
 
         # Last resort: first bank or cash journal
-        return self.env["account.journal"].search(
+        journal = self.env["account.journal"].search(
             [
                 ("type", "in", ("bank", "cash")),
                 ("company_id", "=", self.env.company.id),
             ],
             limit=1,
         )
+        self._journal_cache[gateway_key] = journal
+        return journal
 
     def _resolve_payment_method_line(self, journal):
         """Find the default inbound payment method line for the journal."""
@@ -129,12 +127,17 @@ class PaymentImporter:
     def _resolve_currency(self, currency_code: str):
         if not currency_code:
             return None
+        code = currency_code.upper()
+        if code in self._currency_cache:
+            return self._currency_cache[code]
         currency = self.env["res.currency"].search(
-            [("name", "=", currency_code.upper()), ("active", "in", [True, False])],
+            [("name", "=", code), ("active", "in", [True, False])],
             limit=1,
         )
         if currency and not currency.active:
             currency.active = True
+        if currency:
+            self._currency_cache[code] = currency
         return currency
 
     def _reconcile_with_invoice(self, payment, invoice_id: int):

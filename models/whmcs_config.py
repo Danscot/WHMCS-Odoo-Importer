@@ -57,6 +57,21 @@ class WhmcsImportConfig(models.Model):
         default=lambda self: self.env.company.currency_id,
     )
 
+    # ---- Batch processing ----
+    client_batch_size = fields.Integer(
+        "Client Batch Size", default=250, help="Number of new partners created in one ORM batch."
+    )
+    invoice_batch_size = fields.Integer(
+        "Invoice Batch Size", default=50, help="Number of invoices created in one ORM batch."
+    )
+    transaction_batch_size = fields.Integer(
+        "Transaction Batch Size", default=10, help="Number of payments created in one ORM batch."
+    )
+    transaction_cron_limit = fields.Integer(
+        "Transactions Per Cron Run", default=10,
+        help="Maximum WHMCS transactions processed by one cron callback. Keep this small enough to finish well below the Odoo cron timeout."
+    )
+
     # ---- Matching toggles ----
     match_by_whmcs_mapping = fields.Boolean("Match by WHMCS Mapping", default=True)
     match_by_vat = fields.Boolean("Match by VAT / Tax ID", default=True)

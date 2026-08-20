@@ -44,6 +44,18 @@ class PartnerImporter:
         )
         return partner
 
+    def create_partners_batch(self, clients):
+        """Create multiple partners with one ORM create call.
+        Returns records in the same order as ``clients``.
+        """
+        vals_list = [self._build_vals(client) for client in clients]
+        if not vals_list:
+            return self.env["res.partner"]
+        _logger.info("Creating partner batch of %s records", len(vals_list))
+        partners = self.env["res.partner"].create(vals_list)
+        _logger.info("Created partner batch: %s records", len(partners))
+        return partners
+
     def _build_vals(self, client: NormalizedClient) -> dict:
         """Build the vals dict for res.partner.create() — never includes ref."""
         vals = {}

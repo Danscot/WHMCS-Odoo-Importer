@@ -230,12 +230,16 @@ class WhmcsImportWizard(models.TransientModel):
     # ------------------------------------------------------------------
 
     def action_import(self):
-        """Run the real import (creates records in Odoo)."""
+        """Queue the real import in an Odoo cron worker.
+
+        The browser request only stores the uploaded payload and creates the
+        persistent batch. The heavy ORM work happens in a fresh cron cursor,
+        preventing the HTTP worker from hitting Odoo's real-time limit and
+        losing its PostgreSQL cursor halfway through the import.
+        """
         self.ensure_one()
-        export = self._parse_uploaded_export()
         source_filename = self._source_filename()
 
-        # Create or reuse batch
         batch = self.batch_id
         if batch:
             batch.write({
@@ -243,8 +247,10 @@ class WhmcsImportWizard(models.TransientModel):
                 "state": "running",
                 "started_at": fields.Datetime.now(),
                 "finished_at": False,
+                "import_clients": self.import_clients,
+                "import_invoices": self.import_invoices,
+                "import_transactions": self.import_transactions,
             })
-            # Clear dry-run logs
             batch.log_ids.unlink()
         else:
             batch = self.env["whmcs.import.batch"].create({
@@ -259,51 +265,46 @@ class WhmcsImportWizard(models.TransientModel):
             })
             self.batch_id = batch
 
-        config = self.env["whmcs.import.config"].get_config()
-        from ..services.import_engine import ImportEngine
-        engine = ImportEngine(self.env, batch, config, dry_run=False)
+        # Persist exactly what the user uploaded. The cron worker parses it in
+        # its own transaction/cursor; no Python objects or HTTP cursor are
+        # shared across workers.
+        payload = {
+            "source_json": self.export_file or False,
+            "source_json_filename": self.export_filename or False,
+            "clients_csv": self.clients_file or False,
+            "clients_csv_filename": self.clients_filename or False,
+            "invoices_csv": self.invoices_file or False,
+            "invoices_csv_filename": self.invoices_filename or False,
+            "transactions_csv": self.transactions_file or False,
+            "transactions_csv_filename": self.transactions_filename or False,
+        }
+        batch.write(payload)
 
-        try:
-            summary = engine.run(
-                export,
-                import_clients=self.import_clients,
-                import_invoices=self.import_invoices,
-                import_transactions=self.import_transactions,
-            )
-            batch.write({"finished_at": fields.Datetime.now()})
-            batch._apply_summary(summary)
+        # Odoo 19 cron jobs support progress reporting. Keep this cron alive
+        # while the batch is running; _run_import_job() reports remaining work
+        # and asks the scheduler to deactivate it when the import is complete.
+        cron = self.env["ir.cron"].sudo().create({
+            "name": f"WHMCS Import Batch {batch.id}",
+            "model_id": self.env["ir.model"]._get("whmcs.import.batch").id,
+            "state": "code",
+            "code": f"model.browse({batch.id})._run_import_job()",
+            "user_id": self.env.user.id,
+            "interval_number": 1,
+            "interval_type": "minutes",
+            "nextcall": fields.Datetime.now(),
+            "active": True,
+        })
+        batch.sudo().write({"import_cron_id": cron.id})
 
-            result_lines = [
-                f"✓ {summary['total_clients']} WHMCS clients processed",
-                f"✓ {summary['matched_clients']} existing customers matched",
-                f"✓ {summary['created_clients']} new customers created",
-            ]
-            if summary["ambiguous_clients"]:
-                result_lines.append(f"⚠ {summary['ambiguous_clients']} customers require review")
-            result_lines += [
-                f"✓ {summary['total_invoices']} invoices processed",
-                f"✓ {summary['created_invoices']} invoices created",
-            ]
-            if summary["skipped_invoices"]:
-                result_lines.append(f"⚠ {summary['skipped_invoices']} invoices skipped")
-            result_lines += [
-                f"✓ {summary['total_transactions']} transactions processed",
-                f"✓ {summary['created_transactions']} payments created",
-            ]
-            if summary["skipped_transactions"]:
-                result_lines.append(f"⚠ {summary['skipped_transactions']} payments skipped")
-
-            self.write({
-                "state": "done",
-                "result_message": "\n".join(result_lines),
-            })
-
-        except Exception as exc:
-            batch.write({"state": "failed", "finished_at": fields.Datetime.now()})
-            _logger.exception("WHMCS import batch failed")
-            raise UserError(
-                _("Import failed: %s\n\nCheck the import log for details.") % str(exc)
-            ) from exc
+        self.write({
+            "state": "done",
+            "result_message": (
+                "Import queued successfully.\n\n"
+                f"Batch #{batch.id} is now running in the background.\n"
+                "You can close this window; open Import History to follow the batch.\n\n"
+                "The import uses ORM batches and real Odoo IDs; no preview IDs are ever written."
+            ),
+        })
 
         return {
             "type": "ir.actions.act_window",

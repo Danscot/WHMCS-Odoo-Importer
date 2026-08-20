@@ -378,3 +378,12 @@ These belong to v2/v3.
 8. Open linked payment → show journal, amount, posted status
 9. Run import again → show **Already Imported** — zero duplicates
 10. Say: *"WHMCS never supplied the STD number. Odoo generated it."*
+
+## 19.0.1.4.0 — long-import stability patch
+
+- Real imports are queued in an Odoo cron worker instead of running inside the browser HTTP request.
+- Uploaded WHMCS payloads are persisted on the import batch so the worker gets a fresh PostgreSQL cursor.
+- Partner, invoice and payment imports use ORM batch `create()` calls with per-chunk commits.
+- Invoice/payment batch methods are implemented; failed chunks still fall back to per-record savepoints.
+- Currency/journal/product/tax lookups are cached during the import.
+- Dry Run keeps preview-only identities and never sends preview IDs to Odoo ORM; real Import uses actual Odoo IDs.
