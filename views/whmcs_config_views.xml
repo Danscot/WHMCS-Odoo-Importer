@@ -12,6 +12,63 @@
                         <h1>WHMCS Import Configuration</h1>
                     </div>
 
+                    <group string="Live API Import Limits">
+                        <div class="alert alert-info" role="alert">
+                            Live API limits are read from the module <strong>.env</strong> file.
+                            Set <strong>WHMCS_API_IMPORT_LIMIT</strong> for the maximum number of
+                            clients, invoices and transactions per synchronization, and
+                            <strong>WHMCS_API_FETCH_CHUNK</strong> for the number fetched per cron step.
+                        </div>
+                        <strong>WHMCS_API_IMPORT_LIMIT</strong>
+                        <div>
+                            <span class="text-muted">Edit .env:</span>
+                            <code>WHMCS_API_IMPORT_LIMIT=25</code>
+                        </div>
+                        <strong>WHMCS_API_FETCH_CHUNK</strong>
+                        <div>
+                            <span class="text-muted">Edit .env:</span>
+                            <code>WHMCS_API_FETCH_CHUNK=10</code>
+                        </div>
+                    </group>
+
+                    <group string="Live WHMCS Connection">
+                        <group>
+                            <div class="alert alert-info" role="alert">
+                                WHMCS credentials are currently read from the server <strong>.env</strong>.
+                                They are intentionally not stored in Odoo yet.
+                            </div>
+                            <button name="action_test_whmcs_connection" type="object"
+                                    class="btn btn-outline-primary"
+                                    string="Test WHMCS Connection"
+                                    icon="fa-plug"/>
+                            <button name="action_sync_now" type="object"
+                                    class="btn btn-primary whmcs_sync_now_button"
+                                    string="Synchronize Now"
+                                    icon="fa-refresh"/>
+                        </group>
+                        <group>
+                            <field name="auto_sync_enabled"/>
+                            <field name="sync_interval_days"/>
+                            <field name="sync_import_clients"/>
+                            <field name="sync_import_invoices"/>
+                            <field name="sync_import_transactions"/>
+                        </group>
+                    </group>
+
+                    <group string="Synchronization Status">
+                        <group>
+                            <field name="initial_sync_done"/>
+                            <field name="last_sync_status"/>
+                            <field name="last_sync_at"/>
+                            <field name="last_sync_started_at"/>
+                        </group>
+                        <group>
+                            <field name="last_sync_finished_at"/>
+                            <field name="last_sync_batch_id"/>
+                            <field name="last_sync_error"/>
+                        </group>
+                    </group>
+
                     <group string="General">
                         <group>
                             <field name="company_id" readonly="1"/>

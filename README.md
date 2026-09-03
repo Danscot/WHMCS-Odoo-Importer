@@ -1,3 +1,16 @@
+# WHMCS → Odoo Importer — 19.0.1.2.0
+
+Odoo 19 compatibility and native WHMCS CSV bundle support.
+
+## 19.0.1.2.0 fixes
+- Fixed Odoo 19 form-view label validation.
+- Fixed Odoo 19 alert accessibility validation.
+- Replaced deprecated `_sql_constraints` with `models.Constraint`.
+- Correctly parses the `Clients`, `Invoices`, and `Transactions` title rows used by native WHMCS CSV exports.
+- Correctly maps WHMCS `User ID` and `Invoice ID` relationships.
+- Rejects CSV records without valid IDs instead of creating client ID 0 records.
+- Tested against the supplied exports: 1,936 clients, 1,527 invoices, 967 transactions.
+
 # WHMCS → Odoo Importer
 
 **Module:** `whmcs_odoo_import`  
@@ -365,3 +378,19 @@ These belong to v2/v3.
 8. Open linked payment → show journal, amount, posted status
 9. Run import again → show **Already Imported** — zero duplicates
 10. Say: *"WHMCS never supplied the STD number. Odoo generated it."*
+
+## 19.0.1.4.0 — long-import stability patch
+
+- Real imports are queued in an Odoo cron worker instead of running inside the browser HTTP request.
+- Uploaded WHMCS payloads are persisted on the import batch so the worker gets a fresh PostgreSQL cursor.
+- Partner, invoice and payment imports use ORM batch `create()` calls with per-chunk commits.
+- Invoice/payment batch methods are implemented; failed chunks still fall back to per-record savepoints.
+- Currency/journal/product/tax lookups are cached during the import.
+- Dry Run keeps preview-only identities and never sends preview IDs to Odoo ORM; real Import uses actual Odoo IDs.
+
+
+## API sync performance
+
+The live API path enriches WHMCS list/header records with GetClientsDetails and GetInvoice so it remains equivalent to the manual exports. Because those WHMCS endpoints are one-record-per-request, enrichment is bounded and parallelized (default 8 workers, configurable with `WHMCS_API_ENRICH_WORKERS`, maximum 16). The WHMCS API client uses a thread-local requests session.
+
+For a heavily loaded WHMCS server, set `WHMCS_API_ENRICH_WORKERS=4`; for a responsive server, 8 is a good default.

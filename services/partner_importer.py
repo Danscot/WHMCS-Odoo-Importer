@@ -44,6 +44,18 @@ class PartnerImporter:
         )
         return partner
 
+    def create_partners_batch(self, clients):
+        """Create multiple partners with one ORM create call.
+        Returns records in the same order as ``clients``.
+        """
+        vals_list = [self._build_vals(client) for client in clients]
+        if not vals_list:
+            return self.env["res.partner"]
+        _logger.info("Creating partner batch of %s records", len(vals_list))
+        partners = self.env["res.partner"].create(vals_list)
+        _logger.info("Created partner batch: %s records", len(partners))
+        return partners
+
     def _build_vals(self, client: NormalizedClient) -> dict:
         """Build the vals dict for res.partner.create() — never includes ref."""
         vals = {}
@@ -64,8 +76,13 @@ class PartnerImporter:
             vals["email"] = client.email.strip().lower()
         if client.phone:
             vals["phone"] = client.phone.strip()
-        if client.mobile:
+        # Odoo 19 no longer provides the standard res.partner.mobile field.
+        # Only write it when a custom module has explicitly added it; otherwise
+        # keep the WHMCS number in the native phone field.
+        if client.mobile and "mobile" in self.env["res.partner"]._fields:
             vals["mobile"] = client.mobile.strip()
+        elif client.mobile and not client.phone:
+            vals["phone"] = client.mobile.strip()
 
         # Address
         if client.address1:

@@ -169,15 +169,41 @@ class PartnerResolver:
         if not norm_phone and not norm_mobile:
             return {}
 
-        candidates = {}
-        for p in self.env["res.partner"].search([]):
-            p_phone = normalize_phone(p.phone)
-            p_mobile = normalize_phone(p.mobile)
-            if (norm_phone and p_phone and norm_phone == p_phone) or \
-               (norm_mobile and p_mobile and norm_mobile == p_mobile):
-                candidates[p.id] = p
+        partner_model = self.env["res.partner"]
 
-        return self._evaluate_matches(list(candidates.values()), client, METHOD_PHONE, confidence=70)
+        # Do not use search([]): that loads the entire res.partner table into
+        # Python for every client.  Phone numbers are not stored normalized on
+        # res.partner, so first narrow the SQL result set using the last 9
+        # digits, then perform the authoritative normalization in Python.
+        suffixes = set()
+        for value in (norm_phone, norm_mobile):
+            if value:
+                suffixes.add(value[-9:] if len(value) >= 9 else value)
+
+        domains = []
+        for suffix in suffixes:
+            domains.append([("phone", "ilike", suffix)])
+            if "mobile" in partner_model._fields:
+                domains.append([("mobile", "ilike", suffix)])
+
+        if not domains:
+            return {}
+
+        # Prefix-OR domain: (phone contains suffix) OR (mobile contains suffix) ...
+        domain = domains[0] if len(domains) == 1 else ["|"] * (len(domains) - 1) + [clause for item in domains for clause in item]
+
+        matches = []
+        seen = set()
+        for partner in partner_model.search(domain):
+            p_phone = normalize_phone(partner.phone or "")
+            p_mobile = normalize_phone(getattr(partner, "mobile", "") if "mobile" in partner_model._fields else "")
+            if ((norm_phone and p_phone and norm_phone == p_phone) or
+                    (norm_mobile and p_mobile and norm_mobile == p_mobile)):
+                if partner.id not in seen:
+                    seen.add(partner.id)
+                    matches.append(partner)
+
+        return self._evaluate_matches(matches, client, METHOD_PHONE, confidence=70)
 
     # ------------------------------------------------------------------
     # Level 6 — Composite (normalized name + email/phone)
@@ -201,10 +227,12 @@ class PartnerResolver:
         refined = []
         for p in name_matches:
             email_match = client.normalized_email and ne(p.email) == client.normalized_email
+            has_mobile = "mobile" in self.env["res.partner"]._fields
+            partner_mobile = getattr(p, "mobile", "") if has_mobile else ""
             phone_match = (
-                (client.normalized_phone and normalize_phone(p.phone) == client.normalized_phone)
+                (client.normalized_phone and normalize_phone(p.phone or "") == client.normalized_phone)
                 or
-                (client.normalized_mobile and normalize_phone(p.mobile) == client.normalized_mobile)
+                (client.normalized_mobile and partner_mobile and normalize_phone(partner_mobile) == client.normalized_mobile)
             )
             if email_match or phone_match:
                 refined.append(p)

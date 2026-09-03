@@ -34,10 +34,7 @@ class WhmcsTransactionMapping(models.Model):
         help="Fallback dedup key: client|invoice|amount|date|gateway|ref",
     )
 
-    _sql_constraints = [
-        (
-            "whmcs_transaction_id_unique",
-            "UNIQUE(whmcs_transaction_id)",
-            "Each WHMCS transaction may only be imported once.",
-        )
-    ]
+    _whmcs_transaction_id_unique = models.Constraint(
+        "UNIQUE(whmcs_transaction_id)",
+        "Each WHMCS transaction may only be imported once.",
+    )

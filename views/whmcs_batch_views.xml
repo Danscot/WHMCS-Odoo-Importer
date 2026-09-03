@@ -63,6 +63,28 @@
                         </group>
                     </group>
 
+                    <group string="Live Synchronization" invisible="not sync_config_id">
+                        <group>
+                            <field name="sync_config_id"/>
+                            <field name="sync_initial"/>
+                            <field name="sync_from"/>
+                            <field name="sync_to"/>
+                        </group>
+                        <group>
+                            <field name="source_api_filename"/>
+                            <field name="import_cron_id"/>
+                            <field name="background_setup_done"/>
+                            <field name="transaction_offset"/>
+                        </group>
+                    </group>
+
+                    <group string="API Acquisition">
+                        <p class="text-muted">
+                            The batch log records every WHMCS API page: phase, offset, requested size,
+                            returned count, WHMCS total, stored count and whether more pages remain.
+                        </p>
+                    </group>
+
                     <group string="Clients">
                         <group>
                             <field name="total_clients"/>

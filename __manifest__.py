@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "WHMCS → Odoo Importer",
-    "version": "19.0.1.1.0",
+    "version": "19.0.2.0.0",
     "summary": "Import WHMCS clients, invoices and transactions into Odoo",
     "description": """
 WHMCS → Odoo Importer
@@ -34,6 +34,7 @@ Key features:
         "security/ir.model.access.csv",
         # Data / config
         "data/demo_config.xml",
+        "data/whmcs_cron.xml",
         # Views
         "views/whmcs_config_views.xml",
         "views/whmcs_batch_views.xml",
@@ -47,5 +48,11 @@ Key features:
     "installable": True,
     "application": True,
     "auto_install": False,
-    "assets": {},
+    "assets": {
+        "web.assets_backend": [
+            "whmcs_odoo_import/static/src/js/whmcs_sync_progress.js",
+            "whmcs_odoo_import/static/src/xml/whmcs_sync_progress.xml",
+            "whmcs_odoo_import/static/src/css/whmcs_sync_progress.css",
+        ],
+    },
 }

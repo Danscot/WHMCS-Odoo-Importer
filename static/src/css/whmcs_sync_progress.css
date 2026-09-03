@@ -1,0 +1,9 @@
+.o_whmcs_sync_progress {
+    min-height: 70vh;
+    width: 100%;
+}
+
+.o_whmcs_sync_card {
+    min-width: 360px;
+    background: var(--bs-body-bg, #fff);
+}

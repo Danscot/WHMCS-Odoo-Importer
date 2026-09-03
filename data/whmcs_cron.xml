@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="ir_cron_whmcs_sync" model="ir.cron">
+        <field name="name">WHMCS Automatic Synchronization</field>
+        <field name="model_id" ref="model_whmcs_import_config"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_sync()</field>
+        <field name="user_id" ref="base.user_admin"/>
+        <field name="interval_number">2</field>
+        <field name="interval_type">days</field>
+        <field name="active">False</field>
+    </record>
+</odoo>

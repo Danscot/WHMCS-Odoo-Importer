@@ -36,13 +36,10 @@ class WhmcsPartnerMapping(models.Model):
     confidence = fields.Integer("Confidence %", default=100)
     created_by_import = fields.Boolean("Created by Import", default=False)
 
-    _sql_constraints = [
-        (
-            "whmcs_client_id_unique",
-            "UNIQUE(whmcs_client_id)",
-            "Each WHMCS client ID may only have one Odoo partner mapping.",
-        )
-    ]
+    _whmcs_client_id_unique = models.Constraint(
+        "UNIQUE(whmcs_client_id)",
+        "Each WHMCS client ID may only have one Odoo partner mapping.",
+    )
 
     @api.constrains("partner_id")
     def _check_partner_unique(self):
