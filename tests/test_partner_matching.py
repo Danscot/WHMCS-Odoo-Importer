@@ -45,20 +45,52 @@ class TestPartnerMatching(TransactionCase):
     # Test 1 — Level 1: WHMCS mapping table
     # ------------------------------------------------------------------
 
-    def test_level1_whmcs_mapping(self):
-        """Client with an existing WHMCS mapping must match immediately."""
-        partner = self._make_partner(name="Mapped Company")
+    def test_level1_whmcs_mapping_with_consistent_identity(self):
+        """A mapping is strong, but populated identity fields must still agree."""
+        partner = self._make_partner(
+            name="Mapped Company",
+            email="mapped@example.com",
+            vat="M012345678901A",
+            phone="+237600000001",
+        )
         self.env["whmcs.partner.mapping"].create({
             "whmcs_client_id": 1001,
             "partner_id": partner.id,
             "match_method": "whmcs_mapping",
             "confidence": 100,
         })
-        client = self._make_client(whmcs_id=1001, email="something@else.com")
+        client = self._make_client(
+            whmcs_id=1001,
+            email="mapped@example.com",
+            tax_id="M012345678901A",
+            phone="237600000001",
+        )
         result = self.resolver.resolve(client)
         self.assertEqual(result["status"], STATUS_MATCHED)
         self.assertEqual(result["partner_id"], partner.id)
         self.assertEqual(result["method"], "whmcs_mapping")
+
+    def test_mapping_email_conflict_is_ambiguous(self):
+        """A stale mapping must not hide a conflicting populated email."""
+        partner = self._make_partner(
+            name="Mapped Company",
+            email="old@example.com",
+            vat="M012345678901A",
+        )
+        self.env["whmcs.partner.mapping"].create({
+            "whmcs_client_id": 1002,
+            "partner_id": partner.id,
+            "match_method": "whmcs_mapping",
+            "confidence": 100,
+        })
+        client = self._make_client(
+            whmcs_id=1002,
+            email="new@example.com",
+            tax_id="M012345678901A",
+        )
+        result = self.resolver.resolve(client)
+        self.assertEqual(result["status"], STATUS_AMBIGUOUS)
+        self.assertIn("email", [c["field"] for c in result["conflicts"]])
 
     # ------------------------------------------------------------------
     # Test 2 — Level 2: Exact VAT
@@ -80,6 +112,42 @@ class TestPartnerMatching(TransactionCase):
         client = self._make_client(whmcs_id=2002, tax_id="M999888777666A", email="")
         result = self.resolver.resolve(client)
         self.assertEqual(result["status"], STATUS_AMBIGUOUS)
+
+    def test_vat_match_with_conflicting_email_is_ambiguous(self):
+        """A VAT hit is not safe when the candidate's populated email differs."""
+        partner = self._make_partner(
+            name="VAT Company",
+            vat="M123456789012A",
+            email="odoo@example.com",
+        )
+        client = self._make_client(
+            whmcs_id=2003,
+            tax_id="M123456789012A",
+            email="whmcs@example.com",
+        )
+        result = self.resolver.resolve(client)
+        self.assertEqual(result["status"], STATUS_AMBIGUOUS)
+        self.assertEqual(result["reason"], "identity_conflict")
+
+    def test_two_identifiers_pointing_to_different_partners_is_ambiguous(self):
+        """Different identity sources resolving to different partners are ambiguous."""
+        vat_partner = self._make_partner(
+            name="VAT Partner", vat="M123456789013A"
+        )
+        email_partner = self._make_partner(
+            name="Email Partner", email="same@example.com"
+        )
+        client = self._make_client(
+            whmcs_id=2004,
+            tax_id="M123456789013A",
+            email="same@example.com",
+        )
+        result = self.resolver.resolve(client)
+        self.assertEqual(result["status"], STATUS_AMBIGUOUS)
+        self.assertEqual(
+            {c["partner_id"] for c in result["candidates"]},
+            {vat_partner.id, email_partner.id},
+        )
 
     # ------------------------------------------------------------------
     # Test 3 — Level 4: Email (skipping Level 3 which requires custom field)

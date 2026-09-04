@@ -111,6 +111,12 @@ class PartnerImporter:
         if client.tax_id:
             vals["vat"] = client.tax_id.strip()
 
+        # Microsoft ID — only when the Odoo database exposes the Studio/custom
+        # field. Keeping this in the canonical import prevents a newly-created
+        # partner from losing one of the identifiers used by the resolver.
+        if client.microsoft_id and "x_studio_microsoft_id" in self.env["res.partner"]._fields:
+            vals["x_studio_microsoft_id"] = client.microsoft_id.strip()
+
         # Language
         if client.language:
             # Map WHMCS language codes to Odoo lang codes if possible

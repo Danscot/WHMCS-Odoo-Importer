@@ -40,12 +40,39 @@ class WhmcsImportConfig(models.Model):
         "Transactions Per Cron Run", default=10,
         help="Maximum WHMCS transactions processed by one background callback.")
 
+    # Live API acquisition controls. These are stored in Odoo so the
+    # configuration screen is authoritative; the old .env-only controls are
+    # retained only as fallback for existing deployments.
+    api_import_limit = fields.Integer(
+        "Records Per Entity / Sync", default=500,
+        help="Maximum clients, invoices and transactions acquired for one live synchronization. Set 0 only if you intentionally want to use the server .env fallback.")
+    api_fetch_chunk = fields.Integer(
+        "API Fetch Chunk", default=50,
+        help="Number of records requested from WHMCS in one acquisition step.")
+    api_enrich_workers = fields.Integer(
+        "API Detail Workers", default=4,
+        help="Parallel workers used for WHMCS detail enrichment (1-16).")
+
     auto_sync_enabled = fields.Boolean(
         "Automatic Synchronization", default=False,
         help="Run a WHMCS synchronization automatically on the configured interval.")
+    sync_interval_number = fields.Integer(
+        "Run Every", default=2,
+        help="How often automatic synchronization should start.")
+    sync_interval_type = fields.Selection(
+        [
+            ("minutes", "Minutes"),
+            ("hours", "Hours"),
+            ("days", "Days"),
+            ("weeks", "Weeks"),
+            ("months", "Months"),
+        ],
+        string="Interval Unit", default="days", required=True,
+        help="Time unit for the automatic synchronization interval.")
+    # Backward-compatible field kept for databases upgraded from 19.0.2.
     sync_interval_days = fields.Integer(
-        "Synchronization Interval (days)", default=2,
-        help="Default is every 2 days. The last successful calendar day is included again.")
+        "Legacy Synchronization Interval (days)", default=2,
+        help="Deprecated compatibility field. New schedules use Run Every + Interval Unit.")
     sync_import_clients = fields.Boolean("Sync Clients", default=True)
     sync_import_invoices = fields.Boolean("Sync Invoices", default=True)
     sync_import_transactions = fields.Boolean("Sync Transactions", default=True)
@@ -76,6 +103,17 @@ class WhmcsImportConfig(models.Model):
     gateway_mapping_ids = fields.One2many(
         "whmcs.gateway.mapping", "config_id", string="Payment Gateway Mappings")
 
+    def action_open_config(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Configuration"),
+            "res_model": "whmcs.import.config",
+            "view_mode": "form",
+            "res_id": self.id,
+            "target": "main",
+        }
+
     @api.model
     def get_config(self):
         config = self.search([("company_id", "=", self.env.company.id)], limit=1)
@@ -85,8 +123,14 @@ class WhmcsImportConfig(models.Model):
 
     def _check_sync_configuration(self):
         self.ensure_one()
-        if self.sync_interval_days < 1:
-            raise UserError(_("Synchronization interval must be at least 1 day."))
+        if self.sync_interval_number < 1:
+            raise UserError(_("Synchronization interval must be at least 1."))
+        if self.api_import_limit < 1:
+            raise UserError(_("Records Per Entity / Sync must be at least 1."))
+        if not 1 <= self.api_fetch_chunk <= 1000:
+            raise UserError(_("API Fetch Chunk must be between 1 and 1000."))
+        if not 1 <= self.api_enrich_workers <= 16:
+            raise UserError(_("API Detail Workers must be between 1 and 16."))
         from ..services.live_sync import build_client
         try:
             build_client().ping()
@@ -191,19 +235,35 @@ class WhmcsImportConfig(models.Model):
 
     def write(self, vals):
         result = super().write(vals)
-        if any(k in vals for k in ("auto_sync_enabled", "sync_interval_days")):
+        schedule_keys = {
+            "auto_sync_enabled", "sync_interval_number", "sync_interval_type",
+            "sync_interval_days",
+        }
+        if schedule_keys.intersection(vals):
             cron = self.env.ref(
                 "whmcs_odoo_import.ir_cron_whmcs_sync",
                 raise_if_not_found=False)
             if cron:
-                days = max(1, int(self.sync_interval_days or 2))
-                cron.sudo().write({
-                    "active": bool(self.auto_sync_enabled),
-                    "interval_number": days,
-                    "interval_type": "days",
-                    "nextcall": fields.Datetime.now() if self.auto_sync_enabled else cron.nextcall,
-                })
+                for config in self:
+                    # Migrate the old day-only value only when the new fields
+                    # were not explicitly changed in this write.
+                    number = int(config.sync_interval_number or 1)
+                    interval_type = config.sync_interval_type or "days"
+                    if (
+                        "sync_interval_days" in vals
+                        and "sync_interval_number" not in vals
+                        and "sync_interval_type" not in vals
+                    ):
+                        number = max(1, int(config.sync_interval_days or 2))
+                        interval_type = "days"
+                    cron.sudo().write({
+                        "active": bool(config.auto_sync_enabled),
+                        "interval_number": max(1, number),
+                        "interval_type": interval_type,
+                        "nextcall": fields.Datetime.now() if config.auto_sync_enabled else cron.nextcall,
+                    })
         return result
+
 
 
 class WhmcsGatewayMapping(models.Model):

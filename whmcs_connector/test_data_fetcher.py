@@ -107,6 +107,11 @@ class TestWhmcsDataFetcher(unittest.TestCase):
         self.api = FakeApi()
         self.fetcher = WhmcsDataFetcher(self.api, page_size=100, enrich_workers=4)
         self.parser = WhmcsParser()
+        os.environ["WHMCS_MICROSOFT_CUSTOM_FIELD_ID"] = "7"
+
+    def tearDown(self):
+        os.environ.pop("WHMCS_MICROSOFT_CUSTOM_FIELD_ID", None)
+        super().tearDown()
 
     def test_client_is_enriched_to_csv_equivalent_shape(self):
         rows = self.fetcher.fetch_clients()
@@ -116,9 +121,25 @@ class TestWhmcsDataFetcher(unittest.TestCase):
         self.assertEqual(client.phone, "+237699000001")
         self.assertEqual(client.address1, "Avenue Kennedy")
         self.assertEqual(client.tax_id, "M012345678901A")
+        self.assertEqual(client.microsoft_id, "MS-123")
         self.assertEqual(client.country, "CM")
         self.assertEqual(client.currency, "XAF")
         self.assertIn("GetClientsDetails", [c[0] for c in self.api.calls])
+
+    def test_api_payload_uses_same_canonical_parser_as_manual_json(self):
+        payload = {
+            "clients": self.fetcher.fetch_clients(),
+            "invoices": self.fetcher.fetch_invoices(),
+            "transactions": self.fetcher.fetch_transactions(),
+        }
+        export = self.parser.parse_api_payload(payload)
+        self.assertEqual(len(export.clients), 1)
+        self.assertEqual(len(export.invoices), 1)
+        self.assertEqual(len(export.transactions), 1)
+        self.assertEqual(export.clients[0].tax_id, "M012345678901A")
+        self.assertEqual(export.clients[0].microsoft_id, "MS-123")
+        self.assertEqual(export.invoices[0].lines[0].whmcs_product_id, 77)
+        self.assertEqual(export.transactions[0].amount, 150000.0)
 
     def test_invoice_is_enriched_with_real_line_items(self):
         rows = self.fetcher.fetch_invoices()

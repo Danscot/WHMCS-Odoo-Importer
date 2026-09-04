@@ -72,7 +72,11 @@ class WhmcsDataFetcher:
             raw = [raw]
         if not isinstance(raw, list):
             raw = []
-        self._last_chunk_has_more = bool(raw) and bool(total) and (offset + len(raw) < total)
+        # WHMCS installations/plugins are not consistent about totalresults:
+        # some return the current page size instead of the global total. A full
+        # page is therefore treated as potentially having another page. The
+        # caller also deduplicates IDs/checkpoints offsets, so this is safe.
+        self._last_chunk_has_more = bool(raw) and (len(raw) >= int(chunk_size))
         return raw, total
 
     def fetch_clients_chunk(self, offset=0, chunk_size=50, date_from=None, date_to=None):
@@ -109,6 +113,26 @@ class WhmcsDataFetcher:
         page_count = len(raw)
         if date_from or date_to:
             raw = [r for r in raw if self._date_in_range(r.get("date"), date_from, date_to)]
+
+        # A WHMCS transaction often reports currency=0. The manual export has
+        # the effective client/invoice currency, so acquire the client
+        # currency before producing canonical transaction records. This is
+        # especially important because API acquisition phases use a fresh
+        # fetcher/worker and therefore cannot rely on a previous clients phase
+        # cache.
+        client_ids = {
+            self._to_int(r.get("userid") or r.get("client_id"), 0)
+            for r in raw
+        }
+        client_ids.discard(0)
+        if client_ids:
+            self._parallel_details(
+                [{"id": cid} for cid in client_ids],
+                lambda r: self._to_int(r.get("id"), 0),
+                self._get_client_details,
+                label="transaction client currency",
+            )
+
         out = [self._normalise_transaction(r) for r in raw]
         for record in out:
             if not record.get("currency"):
@@ -369,9 +393,21 @@ class WhmcsDataFetcher:
         )
 
         # Currency IDs are cheap to resolve once and then reused for every
-        # transaction. Client details are normally already cached because the
-        # live sync fetches clients first.
+        # transaction. A standalone transaction fetch may not have a client
+        # phase, so seed client currencies before canonicalizing records.
         self._ensure_currency_cache()
+        client_ids = {
+            self._to_int(r.get("userid") or r.get("client_id"), 0)
+            for r in raw_records
+        }
+        client_ids.discard(0)
+        if client_ids:
+            self._parallel_details(
+                [{"id": cid} for cid in client_ids],
+                lambda r: self._to_int(r.get("id"), 0),
+                self._get_client_details,
+                label="transaction client currency",
+            )
         records = [self._normalise_transaction(r) for r in raw_records]
 
         # Resolve transaction currency after invoices/clients where possible.
@@ -488,6 +524,7 @@ class WhmcsDataFetcher:
     def _normalise_client(cls, raw: dict) -> dict:
         strip = cls._strip_html
         currency = cls._currency_code_from_raw_static(raw)
+        microsoft_id = cls._microsoft_id_from_customfields(raw.get("customfields"))
         return {
             "id": raw.get("id") or raw.get("client_id") or raw.get("userid"),
             "firstname": strip(raw.get("firstname", "")),
@@ -507,9 +544,38 @@ class WhmcsDataFetcher:
             "datecreated": raw.get("datecreated") or raw.get("created_at") or "",
             "status": raw.get("status") or "",
             "tax_id": strip(raw.get("tax_id") or raw.get("taxid") or raw.get("vat") or ""),
-            "microsoft_id": str(raw.get("microsoft_id") or raw.get("Microsoft ID") or "").strip(),
+            "microsoft_id": str(
+                raw.get("microsoft_id")
+                or raw.get("Microsoft ID")
+                or microsoft_id
+                or ""
+            ).strip(),
+            "customfields": raw.get("customfields") or [],
             "currency": currency,
         }
+
+    @staticmethod
+    def _microsoft_id_from_customfields(customfields) -> str:
+        """Extract Microsoft ID from named WHMCS custom fields.
+
+        Some WHMCS installations return only ``id`` + ``value``. In that
+        case, WHMCS_MICROSOFT_CUSTOM_FIELD_ID can identify the field without
+        hard-coding a tenant-specific numeric ID.
+        """
+        if not isinstance(customfields, (list, tuple)):
+            return ""
+        configured_id = os.environ.get("WHMCS_MICROSOFT_CUSTOM_FIELD_ID", "").strip()
+        for field in customfields:
+            if not isinstance(field, dict):
+                continue
+            label = " ".join(
+                str(field.get(k) or "").strip().lower()
+                for k in ("name", "fieldname", "displayname", "description")
+            )
+            field_id = str(field.get("id") or "").strip()
+            if "microsoft" in label or (configured_id and field_id == configured_id):
+                return str(field.get("value") or "").strip()
+        return ""
 
     @staticmethod
     def _currency_code_from_raw_static(raw: dict) -> str:

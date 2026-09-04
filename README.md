@@ -148,40 +148,57 @@ This is ideal for verifying a new export before committing it.
 
 ## 7. Contact Matching Logic
 
-The resolver runs these levels **in strict priority order**, stopping at the first match:
+The resolver treats contact identity as **one evidence set**, not as independent
+first-match rules. The available WHMCS identifiers are collected first:
 
-### Level 1 — WHMCS Mapping Table (Confidence: 100%)
-Checks the `whmcs.partner.mapping` table for a previously recorded
-WHMCS client ID → Odoo partner link. This is the strongest possible match
-and bypasses all other levels.
+- WHMCS mapping
+- VAT / Tax ID
+- Microsoft ID
+- Email
+- Phone / Mobile
+- Composite name + contact as a weak fallback
 
-### Level 2 — Exact Normalized VAT / Tax ID (Confidence: 100%)
-Normalizes both WHMCS and Odoo VAT to uppercase stripped strings and compares exactly.
-If exactly one partner matches: **MATCH**. If multiple: **AMBIGUOUS**.
+Every populated source identifier is checked against the candidate Odoo partner.
+Missing source fields are simply unavailable evidence; they are not fabricated.
 
-### Level 3 — Microsoft ID (Confidence: 100%)
-Matches `x_studio_microsoft_id` (Studio custom field). Skipped if the WHMCS export
-doesn't contain the field, or if the field doesn't exist in this Odoo database.
+### Safe match
 
-### Level 4 — Exact Normalized Email (Confidence: 90%)
-Normalizes to lowercase. If exactly one partner matches: **MATCH**.
-If multiple: **AMBIGUOUS**.
+A client is **MATCHED** only when the candidate set resolves to one Odoo partner
+and the populated identity fields do not contradict that partner.
 
-### Level 5 — Normalized Phone / Mobile (Confidence: 70%)
-Strips all non-digit characters and compares. Searches both `phone` and `mobile`.
+For example:
 
-### Level 6 — Composite Name + Email/Phone (Confidence: 80%)
-Requires both a name match *and* an email or phone match to qualify.
+- WHMCS VAT matches Partner A and email also matches Partner A → **MATCHED**
+- VAT matches Partner A, but email matches Partner B → **AMBIGUOUS**
+- VAT matches Partner A, but Partner A has a different populated email → **AMBIGUOUS**
+- Two Odoo partners share the same email → **AMBIGUOUS**
+- A unique phone match exists and no other populated identifier conflicts → **MATCHED**
+- No identity candidate exists → **NEW**
 
-### Level 7 — No Match
-Returns `STATUS_NEW`. A new partner will be created by `res.partner.create()`.
+This prevents a strong identifier such as VAT or an old WHMCS mapping from hiding
+a contradictory email, Microsoft ID, or phone value.
 
-### Ambiguous Matches
-When multiple Odoo records satisfy a matching criterion, the importer never
-auto-selects. The client is flagged as **AMBIGUOUS** in the batch log for
-manual resolution.
+Ambiguous results retain the candidate partners, evidence used, and conflicting
+fields in the import log so they can be manually resolved.
 
----
+### API and manual data truth
+
+Both workflows must reach the same `NormalizedExport` boundary before matching:
+
+```text
+Manual JSON/CSV ───────┐
+                       ├──► WhmcsParser ──► NormalizedExport ──► Resolver
+WHMCS API + enrichment ┘
+```
+
+The API acquisition layer is responsible only for fetching/enriching WHMCS data.
+It does not define a separate matching data model. API imports are blocked until
+the acquisition checkpoint is complete, and the completed payload is then passed
+through the same parser used by manual imports.
+
+Client enrichment includes the fields required for identity matching whenever
+WHMCS exposes them. On installations where Microsoft ID is returned through a
+numeric WHMCS custom-field ID, configure `WHMCS_MICROSOFT_CUSTOM_FIELD_ID`.
 
 ## 8. Invoice Import
 

@@ -196,21 +196,30 @@ class WhmcsImportBatch(models.Model):
         config = self.sync_config_id.sudo()
         import os
 
+        # Odoo configuration is authoritative. The environment variables are
+        # fallback values for existing deployments that have not populated the
+        # new UI fields yet.
         try:
-            configured_chunk = int(os.environ.get("WHMCS_API_FETCH_CHUNK", str(WHMCS_API_FETCH_CHUNK)))
+            env_chunk = int(os.environ.get("WHMCS_API_FETCH_CHUNK", str(WHMCS_API_FETCH_CHUNK)))
         except (TypeError, ValueError):
-            configured_chunk = WHMCS_API_FETCH_CHUNK
+            env_chunk = WHMCS_API_FETCH_CHUNK
+        configured_chunk = int(getattr(config, "api_fetch_chunk", 0) or env_chunk)
         chunk = max(1, min(1000, configured_chunk))
 
         try:
-            configured_limit = int(os.environ.get("WHMCS_API_IMPORT_LIMIT", str(WHMCS_API_IMPORT_LIMIT)))
+            env_limit = int(os.environ.get("WHMCS_API_IMPORT_LIMIT", str(WHMCS_API_IMPORT_LIMIT)))
         except (TypeError, ValueError):
-            configured_limit = WHMCS_API_IMPORT_LIMIT
+            env_limit = WHMCS_API_IMPORT_LIMIT
+        configured_limit = int(getattr(config, "api_import_limit", 0) or env_limit)
         api_limit = max(1, min(100000, configured_limit))
+        try:
+            enrich_workers = int(getattr(config, "api_enrich_workers", 0) or os.environ.get("WHMCS_API_ENRICH_WORKERS", "4"))
+        except (TypeError, ValueError):
+            enrich_workers = 4
 
         date_from = self.sync_from.strftime("%Y-%m-%d") if self.sync_from and not self.sync_initial else None
         date_to = self.sync_to.strftime("%Y-%m-%d") if self.sync_to and not self.sync_initial else None
-        fetcher = WhmcsDataFetcher(build_client())
+        fetcher = WhmcsDataFetcher(build_client(), enrich_workers=enrich_workers)
 
         payload = {
             "clients": [], "invoices": [], "transactions": [],
@@ -271,11 +280,45 @@ class WhmcsImportBatch(models.Model):
             raise
 
         before = len(payload[phase])
-        accepted = records[:remaining_capacity]
+        # WHMCS can return duplicate pages on some installations/proxies.
+        # Deduplicate by the native WHMCS identifier before advancing the
+        # checkpoint; otherwise a broken offset could make a batch loop forever.
+        id_keys = {
+            "clients": ("id", "client_id"),
+            "invoices": ("id", "invoiceid", "whmcs_invoice_id"),
+            "transactions": ("id", "transactionid", "whmcs_transaction_id"),
+        }[phase]
+        existing_ids = set()
+        for item in payload[phase]:
+            for key in id_keys:
+                value = item.get(key) if isinstance(item, dict) else None
+                if value not in (None, "", 0, "0"):
+                    existing_ids.add(str(value))
+                    break
+        accepted = []
+        for record in records:
+            if len(payload[phase]) + len(accepted) >= api_limit:
+                break
+            rid = None
+            if isinstance(record, dict):
+                for key in id_keys:
+                    value = record.get(key)
+                    if value not in (None, "", 0, "0"):
+                        rid = str(value)
+                        break
+            if rid and rid in existing_ids:
+                continue
+            if rid:
+                existing_ids.add(rid)
+            accepted.append(record)
         payload[phase].extend(accepted)
         after = len(payload[phase])
         raw_count = len(records)
-        has_more = bool(getattr(fetcher, "_last_chunk_has_more", False)) and after < api_limit
+        new_count = len(accepted)
+        # Prefer page size over WHMCS totalresults because totalresults is
+        # unreliable on some WHMCS installations. If a full page produced no
+        # new IDs, stop rather than looping forever on the same page.
+        has_more = bool(getattr(fetcher, "_last_chunk_has_more", False)) and after < api_limit and new_count > 0
         page_end = offset + raw_count
 
         _logger.info(
@@ -370,9 +413,25 @@ class WhmcsImportBatch(models.Model):
 
             parser = WhmcsParser()
             if self.source_api_json:
-                export = parser.parse_bytes(
-                    base64.b64decode(self.source_api_json),
-                    filename=self.source_api_filename or "whmcs-live-sync.json",
+                api_payload = json.loads(
+                    base64.b64decode(self.source_api_json).decode("utf-8")
+                )
+                sync_meta = api_payload.get("_sync") or {}
+                if not sync_meta.get("complete"):
+                    # Never let the matching/import phases observe a partial
+                    # API acquisition. Manual imports always arrive as one
+                    # complete export, so the API path must present the same
+                    # truth boundary.
+                    raise RuntimeError(
+                        "WHMCS API acquisition is not complete; "
+                        "matching is blocked until clients, invoices and "
+                        "transactions have all been acquired."
+                    )
+                export = parser.parse_api_payload(api_payload)
+                _logger.info(
+                    "WHMCS canonical truth ready for batch %s: clients=%d invoices=%d transactions=%d",
+                    self.id, len(export.clients), len(export.invoices),
+                    len(export.transactions),
                 )
             elif self.source_json:
                 export = parser.parse_bytes(

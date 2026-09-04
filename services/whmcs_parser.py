@@ -52,6 +52,52 @@ class WhmcsParser:
             return self._parse_csv(content)
         return self._parse_json(content)
 
+    def parse_api_payload(self, payload) -> NormalizedExport:
+        """
+        Parse an already-acquired WHMCS API payload through the same record
+        parsers used by manual JSON/CSV imports.
+
+        API acquisition may enrich/fetch records, but it must not define a
+        second internal data model. The parser is the single truth boundary
+        before matching and importing.
+        """
+        if not isinstance(payload, dict):
+            raise WhmcsParseError("Expected the WHMCS API payload to be an object.")
+
+        def records(key):
+            value = payload.get(key, [])
+            if value is None:
+                return []
+            if not isinstance(value, list):
+                raise WhmcsParseError(
+                    "WHMCS API payload field '%s' must be a list." % key
+                )
+            return value
+
+        clients = [self._parse_client(c) for c in records("clients")]
+        invoices = [self._parse_invoice(i) for i in records("invoices")]
+        transactions = [self._parse_transaction(t) for t in records("transactions")]
+
+        invalid = (
+            sum(c.whmcs_id <= 0 for c in clients),
+            sum(i.whmcs_invoice_id <= 0 for i in invoices),
+            sum(t.whmcs_transaction_id <= 0 for t in transactions),
+        )
+        if any(invalid):
+            raise WhmcsParseError(
+                "WHMCS API payload contains records without valid IDs "
+                "(clients=%d, invoices=%d, transactions=%d)." % invalid
+            )
+
+        export = NormalizedExport(
+            clients=clients, invoices=invoices, transactions=transactions
+        )
+        _logger.info(
+            "WHMCS Parser (API canonical): parsed %d clients, %d invoices, %d transactions",
+            len(clients), len(invoices), len(transactions),
+        )
+        return export
+
     def parse_uploaded_csvs(
         self,
         clients_content: Optional[bytes] = None,
@@ -119,25 +165,16 @@ class WhmcsParser:
         if not isinstance(raw, dict):
             raise WhmcsParseError("Expected a JSON object at the top level.")
 
-        clients = [self._parse_client(c) for c in raw.get("clients", [])]
-        invoices = [self._parse_invoice(i) for i in raw.get("invoices", [])]
-        transactions = [
-            self._parse_transaction(t) for t in raw.get("transactions", [])
-        ]
-
-        _logger.info(
-            "WHMCS Parser: parsed %d clients, %d invoices, %d transactions",
-            len(clients),
-            len(invoices),
-            len(transactions),
-        )
-        return NormalizedExport(
-            clients=clients,
-            invoices=invoices,
-            transactions=transactions,
-        )
+        return self.parse_api_payload(raw)
 
     def _parse_client(self, raw: dict) -> NormalizedClient:
+        microsoft_id = (
+            raw.get("microsoft_id")
+            or raw.get("Microsoft ID")
+            or raw.get("microsoftid")
+            or self._extract_microsoft_id(raw.get("customfields"))
+            or ""
+        )
         return NormalizedClient(
             whmcs_id=self._to_int(
                 raw.get("id") or raw.get("ID") or raw.get("client_id"),
@@ -163,9 +200,24 @@ class WhmcsParser:
             country=raw.get("country") or raw.get("Country") or "",
             tax_id=raw.get("tax_id") or raw.get("taxid") or raw.get("Tax ID") or raw.get("vat") or "",
             language=raw.get("language") or raw.get("Language") or raw.get("lang") or "",
-            microsoft_id=raw.get("microsoft_id") or raw.get("Microsoft ID") or "",
+            microsoft_id=microsoft_id,
             currency=raw.get("currency") or raw.get("Currency") or raw.get("currency_code") or "",
         )
+
+    @staticmethod
+    def _extract_microsoft_id(customfields) -> str:
+        if not isinstance(customfields, (list, tuple)):
+            return ""
+        for field in customfields:
+            if not isinstance(field, dict):
+                continue
+            label = " ".join(
+                str(field.get(k) or "").strip().lower()
+                for k in ("name", "fieldname", "displayname", "description")
+            )
+            if "microsoft" in label:
+                return str(field.get("value") or "").strip()
+        return ""
 
     def _parse_invoice(self, raw: dict) -> NormalizedInvoice:
         lines_raw = raw.get("lines") or raw.get("items") or []

@@ -14,21 +14,16 @@
 
                     <group string="Live API Import Limits">
                         <div class="alert alert-info" role="alert">
-                            Live API limits are read from the module <strong>.env</strong> file.
-                            Set <strong>WHMCS_API_IMPORT_LIMIT</strong> for the maximum number of
-                            clients, invoices and transactions per synchronization, and
-                            <strong>WHMCS_API_FETCH_CHUNK</strong> for the number fetched per cron step.
+                            These settings are stored in Odoo and control each live synchronization.
+                            The API is acquired in small background chunks, so large limits do not block the browser.
                         </div>
-                        <strong>WHMCS_API_IMPORT_LIMIT</strong>
-                        <div>
-                            <span class="text-muted">Edit .env:</span>
-                            <code>WHMCS_API_IMPORT_LIMIT=25</code>
-                        </div>
-                        <strong>WHMCS_API_FETCH_CHUNK</strong>
-                        <div>
-                            <span class="text-muted">Edit .env:</span>
-                            <code>WHMCS_API_FETCH_CHUNK=10</code>
-                        </div>
+                        <group>
+                            <field name="api_import_limit"/>
+                            <field name="api_fetch_chunk"/>
+                        </group>
+                        <group>
+                            <field name="api_enrich_workers"/>
+                        </group>
                     </group>
 
                     <group string="Live WHMCS Connection">
@@ -48,7 +43,11 @@
                         </group>
                         <group>
                             <field name="auto_sync_enabled"/>
-                            <field name="sync_interval_days"/>
+                            <label for="sync_interval_number" string="Schedule"/>
+                            <div class="o_row">
+                                <field name="sync_interval_number" class="oe_inline"/>
+                                <field name="sync_interval_type" class="oe_inline"/>
+                            </div>
                             <field name="sync_import_clients"/>
                             <field name="sync_import_invoices"/>
                             <field name="sync_import_transactions"/>
@@ -115,11 +114,11 @@
         </field>
     </record>
 
-    <record id="action_whmcs_config" model="ir.actions.act_window">
+    <record id="action_whmcs_config" model="ir.actions.server">
         <field name="name">Configuration</field>
-        <field name="res_model">whmcs.import.config</field>
-        <field name="view_mode">form</field>
-        <field name="target">main</field>
+        <field name="model_id" ref="model_whmcs_import_config"/>
+        <field name="state">code</field>
+        <field name="code">action = env["whmcs.import.config"].get_config().action_open_config()</field>
     </record>
 
     <!-- ====== whmcs.gateway.mapping ====== -->

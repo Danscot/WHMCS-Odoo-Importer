@@ -14,6 +14,29 @@ class TestWhmcsParser(TransactionCase):
         super().setUp()
         self.parser = WhmcsParser()
 
+    def test_api_payload_and_manual_json_share_same_normalized_shape(self):
+        payload = {
+            "clients": [{
+                "id": 1, "firstname": "John", "lastname": "Doe",
+                "email": "JOHN@example.com", "tax_id": " m123 ",
+                "phonenumber": "+237 600 000 001",
+            }],
+            "invoices": [{
+                "id": 8, "userid": 1, "total": "100.00",
+                "status": "Paid", "lines": [],
+            }],
+            "transactions": [{
+                "id": 9, "userid": 1, "invoiceid": 8,
+                "amountin": "100.00", "amountout": "0",
+            }],
+        }
+        result = self.parser.parse_api_payload(payload)
+        self.assertEqual(result.clients[0].normalized_email, "john@example.com")
+        self.assertEqual(result.clients[0].normalized_vat, "M123")
+        self.assertEqual(result.clients[0].normalized_phone, "237600000001")
+        self.assertEqual(result.invoices[0].whmcs_client_id, 1)
+        self.assertEqual(result.transactions[0].whmcs_invoice_id, 8)
+
     def test_clients_csv_skips_section_title(self):
         content = (
             "Clients\n"
